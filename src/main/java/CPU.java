@@ -61,6 +61,10 @@ public class CPU {
         AddressingMode addressingMode;
 
         int absoluteAddress;
+        int operand;
+    }
+    private static enum Register {
+        A, X, Y
     }
 
 
@@ -72,11 +76,11 @@ public class CPU {
                 .x(x)
                 .y(y)
                 .carry(carry)
-                .zero(carry)
-                .interruptDisable(carry)
-                .decimal(carry)
-                .overflow(carry)
-                .negative(carry)
+                .zero(zero)
+                .interruptDisable(interrupt_disable)
+                .decimal(decimal)
+                .overflow(overflow)
+                .negative(negative)
                 .build();
     }
 
@@ -95,7 +99,7 @@ public class CPU {
     }
 
     public int fetch(int address) {
-        return bus.fetch(address);
+        return bus.fetch(address) & 0xFF;
     }
 
     public void runCycle() {
@@ -114,10 +118,13 @@ public class CPU {
     //TODO change this to a table
     private void decodeOpCode(int opCode) {
         switch (opCode) {
+            case 0xA1 -> loadInstructionInitialState(6, Instruction.LDA, AddressingMode.IND_X);
             case 0xA5 -> loadInstructionInitialState(3, Instruction.LDA, AddressingMode.ZPG);
             case 0xA9 -> loadInstructionInitialState(2, Instruction.LDA, AddressingMode.IMM);
             case 0xAD -> loadInstructionInitialState(4, Instruction.LDA, AddressingMode.ABS);
+            case 0xB1 -> loadInstructionInitialState(6, Instruction.LDA, AddressingMode.IND_Y);
             case 0xB5 -> loadInstructionInitialState(4, Instruction.LDA, AddressingMode.ZPG_X);
+            case 0xBD -> loadInstructionInitialState(5, Instruction.LDA, AddressingMode.ABS_X);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -136,12 +143,29 @@ public class CPU {
         this.currInstruction.addressingMode = addressingMode;
     }
 
+    private void handlePageCrossingInLoadInstruction(int address, Register register) {
+        if((address & 0xFF00) == (currInstruction.absoluteAddress & 0xFF00)) {
+            switch (register) {
+                case A -> a = fetch(currInstruction.absoluteAddress);
+                case X -> x = fetch(currInstruction.absoluteAddress);
+                case Y -> y = fetch(currInstruction.absoluteAddress);
+            }
+            //avoid case 1 if no extra cycle is needed. This variable is already
+            //decremented outside of this function, so if we decremented here we
+            //make sure it will not reach case 1.
+            remainingCycles--;
+        }
+    }
+
     private void LDA() {
         switch (currInstruction.addressingMode) {
             case IMM -> a = fetch();
             case ZPG -> handleLdaZeroPageMode();
             case ZPG_X -> handleLdaZeroPageXIndexed();
             case ABS -> handleLdaAbsoluteMode();
+            case ABS_X -> handleLdaAbsoluteXIndexed();
+            case IND_X -> handleLdaIndirectXIndexed();
+            case IND_Y -> handleLdaIndirectYIndexed();
         }
         // Update Zero Flag
         zero = (a == 0);
@@ -166,16 +190,53 @@ public class CPU {
 
     private void handleLdaZeroPageXIndexed() {
         switch (remainingCycles) {
-            case 3 ->
-                // Fetch the base address from the instruction operand.
-                    currInstruction.absoluteAddress = fetch();
-            case 2 ->
-                // Add the X register to the base address.
-                // The '& 0xFF' ensures the result wraps within the zero page (0x00 to 0xFF).
-                    currInstruction.absoluteAddress = (currInstruction.absoluteAddress + x) & 0xFF;
-            case 1 ->
-                // Fetch the value from the computed effective address and load it into the accumulator.
-                    a = fetch(currInstruction.absoluteAddress);
+            case 3 -> currInstruction.absoluteAddress = fetch();
+            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + x) & 0xFF;
+            case 1 -> a = fetch(currInstruction.absoluteAddress);
         }
     }
+
+    private void handleLdaAbsoluteXIndexed() {
+        switch (remainingCycles) {
+            case 4 -> currInstruction.absoluteAddress = fetch();
+            case 3 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
+            case 2 -> {
+                var address = currInstruction.absoluteAddress;
+                currInstruction.absoluteAddress = (address + x) & 0xFFFF;
+                handlePageCrossingInLoadInstruction(address, Register.A);
+            }
+            case 1 -> a = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
+    private void handleLdaIndirectXIndexed() {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.operand = fetch();
+            case 4 -> currInstruction.operand = (currInstruction.operand + x) & 0xFF;
+            case 3 -> currInstruction.absoluteAddress = fetch(currInstruction.operand);
+            case 2 -> {
+                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                currInstruction.absoluteAddress = ((highByte << 8) | currInstruction.absoluteAddress) & 0xFFFF;
+            }
+            case 1 -> a = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
+    private void handleLdaIndirectYIndexed() {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.operand = fetch();
+            case 4 -> currInstruction.absoluteAddress = fetch(currInstruction.operand & 0xFF) ;
+            case 3 -> {
+                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                currInstruction.absoluteAddress = ((highByte << 8) | currInstruction.absoluteAddress) & 0xFFFF;
+            }
+            case 2 -> {
+                var address = currInstruction.absoluteAddress;
+                currInstruction.absoluteAddress = (address + y) & 0xFFFF;
+                handlePageCrossingInLoadInstruction(address, Register.A);
+            }
+            case 1 -> a = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
 }
