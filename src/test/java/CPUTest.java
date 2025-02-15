@@ -1,4 +1,6 @@
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 class CPUTest {
@@ -63,34 +65,48 @@ class CPUTest {
         assertEquals(0x42, state.getA());
     }
 
-    @Test
-    public void LDAAbsoluteXIndexed_NoPageCrossing() {
+    @ParameterizedTest
+    @CsvSource({
+            "0xBD, X", // LDA absolute,X
+            "0xB9, Y"  // LDA absolute,Y
+    })
+    public void LDAAbsoluteIndexed_NoPageCrossing(int opCode, char register) {
         final int instructionCycles = 4;
-        final int LDA_ABSOLUTE_X_OPCODE = 0xBD; // Opcode for LDA absolute, X
 
-        CPU cpu = new CPUTestBuilder()
+        var builder = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, LDA_ABSOLUTE_X_OPCODE, 0x00, 0x90)  // Base address: 0x9000
-                .withRegisterX(0x05) // X = 0x05; effective address = 0x9000 + 0x05 = 0x9005
-                .withMemoryValue(0x9005, 0x42) // Place the operand at effective address 0x9005
-                .buildAndRun(instructionCycles);
+                .withInstruction(0x8000, opCode, 0x00, 0x90)  // Base address: 0x9000
+                .withMemoryValue(0x9005, 0x42); // Place the operand at effective address 0x9005
 
+        if(register == 'X'){
+            builder.withRegisterX(0x05);
+        } else {
+            builder.withRegisterY(0x05);
+        }
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
         CpuState state = cpu.getState();
         assertEquals(0x42, state.getA());
     }
 
-    @Test
-    public void LDAAbsoluteXIndexed_PageCrossing() {
+    @ParameterizedTest
+    @CsvSource({ "0xBD, X", "0xB9, Y" })
+    public void LDAAbsoluteXIndexed_PageCrossing(int opCode, char register) {
         final int instructionCycles = 5;
-        final int LDA_ABSOLUTE_X_OPCODE = 0xBD; // Opcode for LDA absolute, X
 
-        CPU cpu = new CPUTestBuilder()
+        var builder = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, LDA_ABSOLUTE_X_OPCODE, 0xFF, 0x90)
-                .withRegisterX(0x01) // Set X = 0x01, so effective address = 0x90FF + 0x01 = 0x9100.
-                .withMemoryValue(0x9100, 0x42) // Place operand at effective address 0x9100.
-                .buildAndRun(instructionCycles);
+                .withInstruction(0x8000, opCode, 0xFF, 0x90)
+                .withMemoryValue(0x9100, 0x42); // Place operand at effective address 0x9100.
 
+        // Set register = 0x01, so effective address = 0x90FF + 0x01 = 0x9100.
+        if(register == 'X'){
+            builder.withRegisterX(0x01);
+        } else {
+            builder.withRegisterY(0x01);
+        }
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
         CpuState state = cpu.getState();
         assertEquals(0x42, state.getA());
     }

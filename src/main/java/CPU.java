@@ -124,6 +124,7 @@ public class CPU {
             case 0xAD -> loadInstructionInitialState(4, Instruction.LDA, AddressingMode.ABS);
             case 0xB1 -> loadInstructionInitialState(6, Instruction.LDA, AddressingMode.IND_Y);
             case 0xB5 -> loadInstructionInitialState(4, Instruction.LDA, AddressingMode.ZPG_X);
+            case 0xB9 -> loadInstructionInitialState(5, Instruction.LDA, AddressingMode.ABS_Y);
             case 0xBD -> loadInstructionInitialState(5, Instruction.LDA, AddressingMode.ABS_X);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -163,7 +164,8 @@ public class CPU {
             case ZPG -> handleLdaZeroPageMode();
             case ZPG_X -> handleLdaZeroPageXIndexed();
             case ABS -> handleLdaAbsoluteMode();
-            case ABS_X -> handleLdaAbsoluteXIndexed();
+            case ABS_X -> handleLdaAbsoluteIndexed(x);
+            case ABS_Y -> handleLdaAbsoluteIndexed(y);
             case IND_X -> handleLdaIndirectXIndexed();
             case IND_Y -> handleLdaIndirectYIndexed();
         }
@@ -196,13 +198,13 @@ public class CPU {
         }
     }
 
-    private void handleLdaAbsoluteXIndexed() {
+    private void handleLdaAbsoluteIndexed(int indexRegister) {
         switch (remainingCycles) {
             case 4 -> currInstruction.absoluteAddress = fetch();
             case 3 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
             case 2 -> {
                 var address = currInstruction.absoluteAddress;
-                currInstruction.absoluteAddress = (address + x) & 0xFFFF;
+                currInstruction.absoluteAddress = (address + indexRegister) & 0xFFFF;
                 handlePageCrossingInLoadInstruction(address, Register.A);
             }
             case 1 -> a = fetch(currInstruction.absoluteAddress);
