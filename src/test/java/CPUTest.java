@@ -165,4 +165,98 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(0x42, state.getA());
     }
+
+    @Test
+    public void LDXImmediate() {
+        final int instructionCycles = 2;
+        final int LDX_IMMEDIATE_OPCODE = 0xA2; // Opcode for LDX Immediate
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_IMMEDIATE_OPCODE, 0x42) // Simulate LDX #$42
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+    }
+
+    @Test
+    public void LDXZeroPage() {
+        final int instructionCycles = 3;
+        final int LDX_ZEROPAGE_OPCODE = 0xA6; // Opcode for LDX Zero Page
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_ZEROPAGE_OPCODE, 0x10) // LDX $10
+                .withMemoryValue(0x0010, 0x42) // Set memory at address 0x0010 to 0x42
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+    }
+
+    @Test
+    public void LDXZeroPageYIndexed() {
+        final int instructionCycles = 4;
+        final int LDX_ZEROPAGE_Y_OPCODE = 0xB6; // Opcode for LDX Zero Page,Y
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_ZEROPAGE_Y_OPCODE, 0x10) // LDX $10,Y
+                .withRegisterY(0x05) // Y = 0x05; effective address = (0x10 + 0x05) mod 256 = 0x15
+                .withMemoryValue(0x0015, 0x42)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+    }
+
+    @Test
+    public void LDXAbsolute() {
+        final int instructionCycles = 4;
+        final int LDX_ABSOLUTE_OPCODE = 0xAE; // Opcode for LDX Absolute
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_ABSOLUTE_OPCODE, 0x00, 0x90) // LDX $9000
+                .withMemoryValue(0x9000, 0x42) // Place the operand at effective address 0x9000
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+    }
+
+    @Test
+    public void LDXAbsoluteY_NoPageCrossing() {
+        final int instructionCycles = 4;
+        final int LDX_ABSOLUTE_Y_OPCODE = 0xBE; // Opcode for LDX Absolute,Y
+
+        // Base address 0x9000, Y = 0x05 results in effective address 0x9005 (no page crossing)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_ABSOLUTE_Y_OPCODE, 0x00, 0x90)
+                .withRegisterY(0x05)
+                .withMemoryValue(0x9005, 0x42)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+    }
+
+    @Test
+    public void LDXAbsoluteY_PageCrossing() {
+        final int instructionCycles = 5;
+        final int LDX_ABSOLUTE_Y_OPCODE = 0xBE; // Opcode for LDX Absolute,Y
+
+        // Base address 0x90FF with Y = 0x01 results in effective address 0x9100 (page crossing occurs)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_ABSOLUTE_Y_OPCODE, 0xFF, 0x90)
+                .withRegisterY(0x01)
+                .withMemoryValue(0x9100, 0x42)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+    }
 }

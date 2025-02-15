@@ -126,6 +126,12 @@ public class CPU {
             case 0xB5 -> loadInstructionInitialState(4, Instruction.LDA, AddressingMode.ZPG_X);
             case 0xB9 -> loadInstructionInitialState(5, Instruction.LDA, AddressingMode.ABS_Y);
             case 0xBD -> loadInstructionInitialState(5, Instruction.LDA, AddressingMode.ABS_X);
+            // LDX opcodes:
+            case 0xA2 -> loadInstructionInitialState(2, Instruction.LDX, AddressingMode.IMM);
+            case 0xA6 -> loadInstructionInitialState(3, Instruction.LDX, AddressingMode.ZPG);
+            case 0xB6 -> loadInstructionInitialState(4, Instruction.LDX, AddressingMode.ZPG_Y);
+            case 0xAE -> loadInstructionInitialState(4, Instruction.LDX, AddressingMode.ABS);
+            case 0xBE -> loadInstructionInitialState(5, Instruction.LDX, AddressingMode.ABS_Y);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -133,6 +139,8 @@ public class CPU {
     private void executeInstruction() {
         switch (currInstruction.instruction) {
             case LDA -> LDA();
+            case LDX -> LDX();
+
         }
     }
 
@@ -173,6 +181,20 @@ public class CPU {
         zero = (a == 0);
         // Update Negative Flag (bit 7 of A)
         negative = (a & 0x80) != 0;
+    }
+
+    private void LDX() {
+        switch (currInstruction.addressingMode) {
+            case IMM -> x = fetch();
+            case ZPG -> handleLdxZeroPage();
+            case ZPG_Y -> handleLdxZeroPageYIndexed();
+            case ABS -> handleLdxAbsolute();
+            case ABS_Y -> handleLdxAbsoluteYIndexed();
+            default -> throw new RuntimeException("Unsupported addressing mode for LDX: " + currInstruction.addressingMode);
+        }
+        // Update Zero and Negative flags based on X
+        zero = (x == 0);
+        negative = (x & 0x80) != 0;
     }
 
     private void handleLdaZeroPageMode() {
@@ -238,6 +260,45 @@ public class CPU {
                 handlePageCrossingInLoadInstruction(address, Register.A);
             }
             case 1 -> a = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
+    // ###########
+    // #   LDX   #
+    // ###########
+    private void handleLdxZeroPage() {
+        switch (remainingCycles) {
+            case 2 -> currInstruction.absoluteAddress = fetch();
+            case 1 -> x = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
+    private void handleLdxZeroPageYIndexed() {
+        switch (remainingCycles) {
+            case 3 -> currInstruction.absoluteAddress = fetch();
+            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + y) & 0xFF;
+            case 1 -> x = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
+    private void handleLdxAbsolute() {
+        switch (remainingCycles) {
+            case 3 -> currInstruction.absoluteAddress = fetch();
+            case 2 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
+            case 1 -> x = fetch(currInstruction.absoluteAddress);
+        }
+    }
+
+    private void handleLdxAbsoluteYIndexed() {
+        switch (remainingCycles) {
+            case 4 -> currInstruction.absoluteAddress = fetch();
+            case 3 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
+            case 2 -> {
+                int address = currInstruction.absoluteAddress;
+                currInstruction.absoluteAddress = (address + y) & 0xFFFF;
+                handlePageCrossingInLoadInstruction(address, Register.X);
+            }
+            case 1 -> x = fetch(currInstruction.absoluteAddress);
         }
     }
 
