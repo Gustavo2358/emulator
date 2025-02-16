@@ -1,52 +1,90 @@
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 class CPUTest {
 
-    @Test
-    public void LDAImmediate() {
+    @ParameterizedTest
+    @MethodSource("provideLoadImmediateArguments")
+    public void LD_Immediate(int opCode, Function<CpuState, Integer> getRegister) {
         final int instructionCycles = 2;
-        final int LDA_IMMEDIATE_OPCODE = 0xA9; // Opcode for LDA Immediate
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, LDA_IMMEDIATE_OPCODE, 0x42) // Simulate LDA #$42
+                .withInstruction(0x8000, opCode, 0x42) // Simulate LD_ #$42
                 .buildAndRun(instructionCycles);
 
         CpuState state = cpu.getState();
-        assertEquals(0x42, state.getA());
+        assertEquals(0x42, getRegister.apply(state));
     }
 
-    @Test
-    public void LDAAbsolute() {
+    private static Stream<Arguments> provideLoadImmediateArguments(){
+        final int LDA_IMMEDIATE_OPCODE = 0xA9; // Opcode for LDA Immediate
+        final Function<CpuState, Integer> getA = CpuState::getA;
+        final int LDX_IMMEDIATE_OPCODE = 0xA2; // Opcode for LDX Immediate
+        final Function<CpuState, Integer> getX = CpuState::getX;
+        return Stream.of(
+                Arguments.of(LDA_IMMEDIATE_OPCODE, getA),
+                Arguments.of(LDX_IMMEDIATE_OPCODE, getX)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideLoadAbsoluteArguments")
+    public void LD_Absolute(int opCode, Function<CpuState, Integer> getRegister) {
         final int instructionCycles = 4;
-        final int LDA_ABSOLUTE_OPCODE = 0xAD; // Opcode for LDA Absolute
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, LDA_ABSOLUTE_OPCODE, 0x00, 0x90) // LDA $9000
+                .withInstruction(0x8000, opCode, 0x00, 0x90)
                 .withMemoryValue(0x9000, 0x42) // Set operand at effective address 0x9000
                 .buildAndRun(instructionCycles);
 
         CpuState state = cpu.getState();
-        assertEquals(0x42, state.getA());
+        assertEquals(0x42, getRegister.apply(state));
     }
 
-    @Test
-    public void LDAZeroPage() {
+    private static Stream<Arguments> provideLoadAbsoluteArguments(){
+        final int LDA_ABSOLUTE_OPCODE = 0xAD; // Opcode for LDA Absolute
+        final Function<CpuState, Integer> getA = CpuState::getA;
+        final int LDX_ABSOLUTE_OPCODE = 0xAE; // Opcode for LDX Absolute
+        final Function<CpuState, Integer> getX = CpuState::getX;
+        return Stream.of(
+                Arguments.of(LDA_ABSOLUTE_OPCODE, getA),
+                Arguments.of(LDX_ABSOLUTE_OPCODE, getX)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideLoadZeroPageArguments")
+    public void LD_ZeroPage(int opCode, Function<CpuState, Integer> getRegister) {
         final int instructionCycles = 3;
-        final int LDA_ZERO_PAGE_OPCODE = 0xA5; // Opcode for LDA Zero Page
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, LDA_ZERO_PAGE_OPCODE, 0x10) // Instruction: LDA $10
+                .withInstruction(0x8000, opCode, 0x10) // Instruction: LDA $10
                 .withMemoryValue(0x0010, 0x42) // Set memory at address 0x0010 to 0x42
                 .buildAndRun(instructionCycles);
 
         CpuState state = cpu.getState();
-        assertEquals(0x42, state.getA());
+        assertEquals(0x42, getRegister.apply(state));
+    }
+
+    private static Stream<Arguments> provideLoadZeroPageArguments(){
+        final int LDA_ZERO_PAGE_OPCODE = 0xA5; // Opcode for LDA Zero Page
+        final Function<CpuState, Integer> getA = CpuState::getA;
+        final int LDX_ZEROPAGE_OPCODE = 0xA6; // Opcode for LDX Zero Page
+        final Function<CpuState, Integer> getX = CpuState::getX;
+        return Stream.of(
+                Arguments.of(LDA_ZERO_PAGE_OPCODE, getA),
+                Arguments.of(LDX_ZEROPAGE_OPCODE, getX)
+        );
     }
 
     @Test
@@ -167,35 +205,6 @@ class CPUTest {
     }
 
     @Test
-    public void LDXImmediate() {
-        final int instructionCycles = 2;
-        final int LDX_IMMEDIATE_OPCODE = 0xA2; // Opcode for LDX Immediate
-
-        CPU cpu = new CPUTestBuilder()
-                .withResetVector(0x8000)
-                .withInstruction(0x8000, LDX_IMMEDIATE_OPCODE, 0x42) // Simulate LDX #$42
-                .buildAndRun(instructionCycles);
-
-        CpuState state = cpu.getState();
-        assertEquals(0x42, state.getX());
-    }
-
-    @Test
-    public void LDXZeroPage() {
-        final int instructionCycles = 3;
-        final int LDX_ZEROPAGE_OPCODE = 0xA6; // Opcode for LDX Zero Page
-
-        CPU cpu = new CPUTestBuilder()
-                .withResetVector(0x8000)
-                .withInstruction(0x8000, LDX_ZEROPAGE_OPCODE, 0x10) // LDX $10
-                .withMemoryValue(0x0010, 0x42) // Set memory at address 0x0010 to 0x42
-                .buildAndRun(instructionCycles);
-
-        CpuState state = cpu.getState();
-        assertEquals(0x42, state.getX());
-    }
-
-    @Test
     public void LDXZeroPageYIndexed() {
         final int instructionCycles = 4;
         final int LDX_ZEROPAGE_Y_OPCODE = 0xB6; // Opcode for LDX Zero Page,Y
@@ -205,21 +214,6 @@ class CPUTest {
                 .withInstruction(0x8000, LDX_ZEROPAGE_Y_OPCODE, 0x10) // LDX $10,Y
                 .withRegisterY(0x05) // Y = 0x05; effective address = (0x10 + 0x05) mod 256 = 0x15
                 .withMemoryValue(0x0015, 0x42)
-                .buildAndRun(instructionCycles);
-
-        CpuState state = cpu.getState();
-        assertEquals(0x42, state.getX());
-    }
-
-    @Test
-    public void LDXAbsolute() {
-        final int instructionCycles = 4;
-        final int LDX_ABSOLUTE_OPCODE = 0xAE; // Opcode for LDX Absolute
-
-        CPU cpu = new CPUTestBuilder()
-                .withResetVector(0x8000)
-                .withInstruction(0x8000, LDX_ABSOLUTE_OPCODE, 0x00, 0x90) // LDX $9000
-                .withMemoryValue(0x9000, 0x42) // Place the operand at effective address 0x9000
                 .buildAndRun(instructionCycles);
 
         CpuState state = cpu.getState();
