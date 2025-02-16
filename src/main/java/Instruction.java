@@ -1,4 +1,5 @@
 public enum Instruction {
     LDA,
-    LDX
+    LDX,
+    LDY
 }

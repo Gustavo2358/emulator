@@ -29,9 +29,12 @@ class CPUTest {
         final Function<CpuState, Integer> getA = CpuState::getA;
         final int LDX_IMMEDIATE_OPCODE = 0xA2; // Opcode for LDX Immediate
         final Function<CpuState, Integer> getX = CpuState::getX;
+        final int LDY_IMMEDIATE_OPCODE = 0xA0; // Opcode for LDX Immediate
+        final Function<CpuState, Integer> getY = CpuState::getY;
         return Stream.of(
                 Arguments.of(LDA_IMMEDIATE_OPCODE, getA),
-                Arguments.of(LDX_IMMEDIATE_OPCODE, getX)
+                Arguments.of(LDX_IMMEDIATE_OPCODE, getX),
+                Arguments.of(LDY_IMMEDIATE_OPCODE, getY)
         );
     }
 
@@ -55,9 +58,12 @@ class CPUTest {
         final Function<CpuState, Integer> getA = CpuState::getA;
         final int LDX_ABSOLUTE_OPCODE = 0xAE; // Opcode for LDX Absolute
         final Function<CpuState, Integer> getX = CpuState::getX;
+        final int LDY_ABSOLUTE_OPCODE = 0xAC; // Opcode for LDX Absolute
+        final Function<CpuState, Integer> getY = CpuState::getY;
         return Stream.of(
                 Arguments.of(LDA_ABSOLUTE_OPCODE, getA),
-                Arguments.of(LDX_ABSOLUTE_OPCODE, getX)
+                Arguments.of(LDX_ABSOLUTE_OPCODE, getX),
+                Arguments.of(LDY_ABSOLUTE_OPCODE, getY)
         );
     }
 
@@ -79,11 +85,14 @@ class CPUTest {
     private static Stream<Arguments> provideLoadZeroPageArguments(){
         final int LDA_ZERO_PAGE_OPCODE = 0xA5; // Opcode for LDA Zero Page
         final Function<CpuState, Integer> getA = CpuState::getA;
-        final int LDX_ZEROPAGE_OPCODE = 0xA6; // Opcode for LDX Zero Page
+        final int LDX_ZERO_PAGE_OPCODE = 0xA6; // Opcode for LDX Zero Page
         final Function<CpuState, Integer> getX = CpuState::getX;
+        final int LDY_ZERO_PAGE_OPCODE = 0xA4; // Opcode for LDX Zero Page
+        final Function<CpuState, Integer> getY = CpuState::getY;
         return Stream.of(
                 Arguments.of(LDA_ZERO_PAGE_OPCODE, getA),
-                Arguments.of(LDX_ZEROPAGE_OPCODE, getX)
+                Arguments.of(LDX_ZERO_PAGE_OPCODE, getX),
+                Arguments.of(LDY_ZERO_PAGE_OPCODE, getY)
         );
     }
 
@@ -221,6 +230,22 @@ class CPUTest {
     }
 
     @Test
+    public void LDYZeroPageXIndexed() {
+        final int instructionCycles = 4;
+        final int LDX_ZERO_PAGE_X_OPCODE = 0xB4; // Opcode for LDY Zero Page,X
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDX_ZERO_PAGE_X_OPCODE, 0x10) // LDX $10,Y
+                .withRegisterX(0x05) // Y = 0x05; effective address = (0x10 + 0x05) mod 256 = 0x15
+                .withMemoryValue(0x0015, 0x42)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getY());
+    }
+
+    @Test
     public void LDXAbsoluteY_NoPageCrossing() {
         final int instructionCycles = 4;
         final int LDX_ABSOLUTE_Y_OPCODE = 0xBE; // Opcode for LDX Absolute,Y
@@ -252,5 +277,37 @@ class CPUTest {
 
         CpuState state = cpu.getState();
         assertEquals(0x42, state.getX());
+    }
+
+    @Test
+    public void LDYAbsoluteX_NoPageCrossing() {
+        final int instructionCycles = 4;
+        final int LDY_ABSOLUTE_X_OPCODE = 0xBC; // Opcode for LDY Absolute,X
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDY_ABSOLUTE_X_OPCODE, 0x00, 0x90)
+                .withRegisterX(0x05)
+                .withMemoryValue(0x9005, 0x42)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getY());
+    }
+
+    @Test
+    public void LDYAbsoluteX_PageCrossing() {
+        final int instructionCycles = 5;
+        final int LDY_ABSOLUTE_X_OPCODE = 0xBC; // Opcode for LDY Absolute,X
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, LDY_ABSOLUTE_X_OPCODE, 0xFF, 0x90)
+                .withRegisterX(0x01)
+                .withMemoryValue(0x9100, 0x42)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getY());
     }
 }

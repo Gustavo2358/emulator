@@ -128,6 +128,13 @@ public class CPU {
             case 0xB6 -> loadInstructionInitialState(4, Instruction.LDX, AddressingMode.ZPG_Y);
             case 0xAE -> loadInstructionInitialState(4, Instruction.LDX, AddressingMode.ABS);
             case 0xBE -> loadInstructionInitialState(5, Instruction.LDX, AddressingMode.ABS_Y);
+            //LDY opcodes:
+            case 0xA0 -> loadInstructionInitialState(2, Instruction.LDY, AddressingMode.IMM);
+            case 0xA4 -> loadInstructionInitialState(3, Instruction.LDY, AddressingMode.ZPG);
+            case 0xAC -> loadInstructionInitialState(4, Instruction.LDY, AddressingMode.ABS);
+            case 0xB4 -> loadInstructionInitialState(4, Instruction.LDY, AddressingMode.ZPG_X);
+            case 0xBC -> loadInstructionInitialState(5, Instruction.LDY, AddressingMode.ABS_X);
+
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -136,7 +143,7 @@ public class CPU {
         switch (currInstruction.instruction) {
             case LDA -> LDA();
             case LDX -> LDX();
-
+            case LDY -> LDY();
         }
     }
 
@@ -182,6 +189,20 @@ public class CPU {
             case ABS -> handleLoad_AbsoluteMode(x);
             case ABS_Y -> handleLoad_AbsoluteIndexed(x, y);
             default -> throw new RuntimeException("Unsupported addressing mode for LDX: " + currInstruction.addressingMode);
+        }
+        // Update Zero and Negative flags based on X
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
+    }
+
+    private void LDY() {
+        switch (currInstruction.addressingMode) {
+            case IMM -> y.setValue(fetch());
+            case ZPG -> handleLoad_ZeroPageMode(y);
+            case ZPG_X -> handleLoad_ZeroPageIndexed(y, x);
+            case ABS -> handleLoad_AbsoluteMode(y);
+            case ABS_X -> handleLoad_AbsoluteIndexed(y, x);
+            default -> throw new RuntimeException("Unsupported addressing mode for LDY: " + currInstruction.addressingMode);
         }
         // Update Zero and Negative flags based on X
         zero = (x.getValue() == 0);
