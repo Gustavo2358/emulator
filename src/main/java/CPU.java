@@ -7,7 +7,7 @@ public class CPU {
     private final Register8Bit a, x, y;
     private boolean carry;
     private boolean zero;
-    private boolean interrupt_disable;
+    private boolean interruptDisable;
     private boolean decimal;
     private boolean overflow;
     private boolean negative;
@@ -27,7 +27,7 @@ public class CPU {
         //TODO find the correct initial values for the status flags
         carry = false;
         zero = false;
-        interrupt_disable = true;
+        interruptDisable = true;
         decimal = false;
         overflow = false;
         negative = false;
@@ -49,7 +49,7 @@ public class CPU {
             this.y.setValue(cpuState.getY());
             this.carry = cpuState.isCarry();
             this.zero = cpuState.isZero();
-            this.interrupt_disable = cpuState.isInterrupt_disable();
+            this.interruptDisable = cpuState.isInterruptDisable();
             this.decimal = cpuState.isDecimal();
             this.overflow = cpuState.isOverflow();
             this.negative = cpuState.isNegative();
@@ -73,7 +73,7 @@ public class CPU {
                 .y(y.getValue())
                 .carry(carry)
                 .zero(zero)
-                .interruptDisable(interrupt_disable)
+                .interruptDisable(interruptDisable)
                 .decimal(decimal)
                 .overflow(overflow)
                 .negative(negative)

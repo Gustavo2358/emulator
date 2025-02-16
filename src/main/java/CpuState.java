@@ -1,6 +1,6 @@
 public class CpuState {
     private final int pc, sp, a, x, y;
-    private final boolean carry, zero, interrupt_disable, decimal, overflow, negative;
+    private final boolean carry, zero, interruptDisable, decimal, overflow, negative;
 
     private CpuState(Builder builder) {
         this.pc = builder.pc;
@@ -10,7 +10,7 @@ public class CpuState {
         this.y = builder.y;
         this.carry = builder.carry;
         this.zero = builder.zero;
-        this.interrupt_disable = builder.interrupt_disable;
+        this.interruptDisable = builder.interruptDisable;
         this.decimal = builder.decimal;
         this.overflow = builder.overflow;
         this.negative = builder.negative;
@@ -18,7 +18,7 @@ public class CpuState {
 
     public static class Builder {
         private int pc = 0x00, sp = 0xFD, a = 0x00, x = 0x00, y = 0x00;
-        private boolean carry = false, zero = false, interrupt_disable = true, decimal = false, overflow = false, negative = false;
+        private boolean carry = false, zero = false, interruptDisable = true, decimal = false, overflow = false, negative = false;
 
         public Builder pc(int pc) { this.pc = pc; return this; }
         public Builder sp(int sp) { this.sp = sp; return this; }
@@ -27,7 +27,7 @@ public class CpuState {
         public Builder y(int y) { this.y = y; return this; }
         public Builder carry(boolean carry) { this.carry = carry; return this; }
         public Builder zero(boolean zero) { this.zero = zero; return this; }
-        public Builder interruptDisable(boolean interrupt_disable) { this.interrupt_disable = interrupt_disable; return this; }
+        public Builder interruptDisable(boolean interrupt_disable) { this.interruptDisable = interrupt_disable; return this; }
         public Builder decimal(boolean decimal) { this.decimal = decimal; return this; }
         public Builder overflow(boolean overflow) { this.overflow = overflow; return this; }
         public Builder negative(boolean negative) { this.negative = negative; return this; }
@@ -65,8 +65,8 @@ public class CpuState {
         return zero;
     }
 
-    public boolean isInterrupt_disable() {
-        return interrupt_disable;
+    public boolean isInterruptDisable() {
+        return interruptDisable;
     }
 
     public boolean isDecimal() {
