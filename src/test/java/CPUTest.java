@@ -480,4 +480,53 @@ class CPUTest {
         assertEquals(0x42, bus.fetch(0x9000));
     }
 
+    // #### STY ####
+
+    @Test
+    public void STY_ZeroPage() {
+        final int instructionCycles = 3;
+        final int STY_ZERO_PAGE_OPCODE = 0x84; // Opcode for STY Zero Page
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(0x42)
+                .withInstruction(0x8000, STY_ZERO_PAGE_OPCODE, 0x10) // STX $10
+                .buildAndRun(instructionCycles, bus);
+
+        //Verify that memory at address 0x0010 now holds 0x42
+        assertEquals(0x42, bus.fetch(0x0010));
+    }
+
+    @Test
+    public void STY_ZeroPageX() {
+        final int instructionCycles = 4;
+        final int STA_ZERO_PAGE_X_OPCODE = 0x94; // Opcode for STX Zero Page,X
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(0x42)
+                .withRegisterX(0x05) // X = 0x05; effective address: 0x10 + 0x05 = 0x15
+                .withInstruction(0x8000, STA_ZERO_PAGE_X_OPCODE, 0x10) // STX $10,X
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x0015));
+    }
+
+    @Test
+    public void STY_Absolute() {
+        final int instructionCycles = 4;
+        final int STY_ABSOLUTE_OPCODE = 0x8C; // Opcode for STY Absolute
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(0x42)
+                .withInstruction(0x8000, STY_ABSOLUTE_OPCODE, 0x00, 0x90) // STA $9000
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x9000));
+    }
+
 }

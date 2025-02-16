@@ -3,5 +3,6 @@ public enum Instruction {
     LDX,
     LDY,
     STA,
-    STX
+    STX,
+    STY
 }
