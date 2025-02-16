@@ -146,6 +146,11 @@ public class CPU {
             case 0x99 -> loadInstructionInitialState(5, Instruction.STA, AddressingMode.ABS_Y);
             case 0x81 -> loadInstructionInitialState(6, Instruction.STA, AddressingMode.IND_X);
             case 0x91 -> loadInstructionInitialState(6, Instruction.STA, AddressingMode.IND_Y);
+            // STX opcodes:
+            case 0x86 -> loadInstructionInitialState(3, Instruction.STX, AddressingMode.ZPG);
+            case 0x96 -> loadInstructionInitialState(4, Instruction.STX, AddressingMode.ZPG_Y);
+            case 0x8E -> loadInstructionInitialState(4, Instruction.STX, AddressingMode.ABS);
+
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -156,6 +161,7 @@ public class CPU {
             case LDX -> LDX();
             case LDY -> LDY();
             case STA -> STA();
+            case STX -> STX();
         }
     }
 
@@ -231,6 +237,15 @@ public class CPU {
             case IND_X -> handleSTAIndirectX();
             case IND_Y -> handleSTAIndirectY();
             default -> throw new RuntimeException("Unsupported addressing mode for STA: " + currInstruction.addressingMode);
+        }
+    }
+
+    private void STX() {
+        switch (currInstruction.addressingMode) {
+            case ZPG -> handleStore_ZeroPage(x);
+            case ZPG_Y -> handleStore_ZeroPageIndexed(x, y);
+            case ABS -> handleStore_Absolute(x);
+            default -> throw new RuntimeException("Unsupported addressing mode for STX: " + currInstruction.addressingMode);
         }
     }
 
