@@ -4,7 +4,7 @@ public class CPU {
 
     private int pc;
     private int sp;
-    private int a, x, y;
+    private final Register8Bit a, x, y;
     private boolean carry;
     private boolean zero;
     private boolean interrupt_disable;
@@ -21,9 +21,9 @@ public class CPU {
 
         pc = 0x00;
         sp = 0xFD;
-        a = 0x00;
-        x = 0x00;
-        y = 0x00;
+        a = new Register8Bit(0x00);
+        x = new Register8Bit(0x00);
+        y = new Register8Bit(0x00);
         //TODO find the correct initial values for the status flags
         carry = false;
         zero = false;
@@ -44,9 +44,9 @@ public class CPU {
         if(Objects.nonNull(cpuState)) {
             this.pc = cpuState.getPc();
             this.sp = cpuState.getSp();
-            this.a = cpuState.getA();
-            this.x = cpuState.getX();
-            this.y = cpuState.getY();
+            this.a.setValue(cpuState.getA());
+            this.x.setValue(cpuState.getX());
+            this.y.setValue(cpuState.getY());
             this.carry = cpuState.isCarry();
             this.zero = cpuState.isZero();
             this.interrupt_disable = cpuState.isInterrupt_disable();
@@ -63,18 +63,14 @@ public class CPU {
         int absoluteAddress;
         int operand;
     }
-    private static enum Register {
-        A, X, Y
-    }
-
 
     public CpuState getState(){
         return new CpuState.Builder()
                 .pc(pc)
                 .sp(sp)
-                .a(a)
-                .x(x)
-                .y(y)
+                .a(a.getValue())
+                .x(x.getValue())
+                .y(y.getValue())
                 .carry(carry)
                 .zero(zero)
                 .interruptDisable(interrupt_disable)
@@ -152,13 +148,9 @@ public class CPU {
         this.currInstruction.addressingMode = addressingMode;
     }
 
-    private void handlePageCrossingInLoadInstruction(int address, Register register) {
+    private void handlePageCrossingInLoadInstruction(int address, Register8Bit register) {
         if((address & 0xFF00) == (currInstruction.absoluteAddress & 0xFF00)) {
-            switch (register) {
-                case A -> a = fetch(currInstruction.absoluteAddress);
-                case X -> x = fetch(currInstruction.absoluteAddress);
-                case Y -> y = fetch(currInstruction.absoluteAddress);
-            }
+            register.setValue(fetch(currInstruction.absoluteAddress));
             //avoid case 1 if no extra cycle is needed. This variable is already
             //decremented outside of this function, so if we decremented here we
             //make sure it will not reach case 1.
@@ -168,24 +160,24 @@ public class CPU {
 
     private void LDA() {
         switch (currInstruction.addressingMode) {
-            case IMM -> a = fetch();
-            case ZPG -> handleLdaZeroPageMode();
+            case IMM -> a.setValue(fetch());
+            case ZPG -> handleLd_ZeroPageMode(a);
             case ZPG_X -> handleLdaZeroPageXIndexed();
             case ABS -> handleLdaAbsoluteMode();
-            case ABS_X -> handleLdaAbsoluteIndexed(x);
-            case ABS_Y -> handleLdaAbsoluteIndexed(y);
+            case ABS_X -> handleLdaAbsoluteIndexed(x.getValue());
+            case ABS_Y -> handleLdaAbsoluteIndexed(y.getValue());
             case IND_X -> handleLdaIndirectXIndexed();
             case IND_Y -> handleLdaIndirectYIndexed();
         }
         // Update Zero Flag
-        zero = (a == 0);
+        zero = (a.getValue() == 0);
         // Update Negative Flag (bit 7 of A)
-        negative = (a & 0x80) != 0;
+        negative = (a.getValue() & 0x80) != 0;
     }
 
     private void LDX() {
         switch (currInstruction.addressingMode) {
-            case IMM -> x = fetch();
+            case IMM -> x.setValue(fetch());
             case ZPG -> handleLdxZeroPage();
             case ZPG_Y -> handleLdxZeroPageYIndexed();
             case ABS -> handleLdxAbsolute();
@@ -193,14 +185,14 @@ public class CPU {
             default -> throw new RuntimeException("Unsupported addressing mode for LDX: " + currInstruction.addressingMode);
         }
         // Update Zero and Negative flags based on X
-        zero = (x == 0);
-        negative = (x & 0x80) != 0;
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
     }
 
-    private void handleLdaZeroPageMode() {
+    private void handleLd_ZeroPageMode(Register8Bit reg) {
         switch (remainingCycles) {
             case 2 -> currInstruction.absoluteAddress = fetch();
-            case 1 -> a = fetch(currInstruction.absoluteAddress);
+            case 1 -> reg.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
@@ -208,15 +200,15 @@ public class CPU {
         switch (remainingCycles) {
             case 3 -> currInstruction.absoluteAddress = fetch();
             case 2 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
-            case 1 -> a = fetch(currInstruction.absoluteAddress);
+            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
     private void handleLdaZeroPageXIndexed() {
         switch (remainingCycles) {
             case 3 -> currInstruction.absoluteAddress = fetch();
-            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + x) & 0xFF;
-            case 1 -> a = fetch(currInstruction.absoluteAddress);
+            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + x.getValue()) & 0xFF;
+            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
@@ -227,22 +219,22 @@ public class CPU {
             case 2 -> {
                 var address = currInstruction.absoluteAddress;
                 currInstruction.absoluteAddress = (address + indexRegister) & 0xFFFF;
-                handlePageCrossingInLoadInstruction(address, Register.A);
+                handlePageCrossingInLoadInstruction(address, a);
             }
-            case 1 -> a = fetch(currInstruction.absoluteAddress);
+            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
     private void handleLdaIndirectXIndexed() {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
-            case 4 -> currInstruction.operand = (currInstruction.operand + x) & 0xFF;
+            case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
             case 3 -> currInstruction.absoluteAddress = fetch(currInstruction.operand);
             case 2 -> {
                 int highByte = fetch((currInstruction.operand + 1) & 0xFF);
                 currInstruction.absoluteAddress = ((highByte << 8) | currInstruction.absoluteAddress) & 0xFFFF;
             }
-            case 1 -> a = fetch(currInstruction.absoluteAddress);
+            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
@@ -256,10 +248,10 @@ public class CPU {
             }
             case 2 -> {
                 var address = currInstruction.absoluteAddress;
-                currInstruction.absoluteAddress = (address + y) & 0xFFFF;
-                handlePageCrossingInLoadInstruction(address, Register.A);
+                currInstruction.absoluteAddress = (address + y.getValue()) & 0xFFFF;
+                handlePageCrossingInLoadInstruction(address, a);
             }
-            case 1 -> a = fetch(currInstruction.absoluteAddress);
+            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
@@ -269,15 +261,15 @@ public class CPU {
     private void handleLdxZeroPage() {
         switch (remainingCycles) {
             case 2 -> currInstruction.absoluteAddress = fetch();
-            case 1 -> x = fetch(currInstruction.absoluteAddress);
+            case 1 -> x.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
     private void handleLdxZeroPageYIndexed() {
         switch (remainingCycles) {
             case 3 -> currInstruction.absoluteAddress = fetch();
-            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + y) & 0xFF;
-            case 1 -> x = fetch(currInstruction.absoluteAddress);
+            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + y.getValue()) & 0xFF;
+            case 1 -> x.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
@@ -285,7 +277,7 @@ public class CPU {
         switch (remainingCycles) {
             case 3 -> currInstruction.absoluteAddress = fetch();
             case 2 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
-            case 1 -> x = fetch(currInstruction.absoluteAddress);
+            case 1 -> x.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
@@ -295,10 +287,10 @@ public class CPU {
             case 3 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
             case 2 -> {
                 int address = currInstruction.absoluteAddress;
-                currInstruction.absoluteAddress = (address + y) & 0xFFFF;
-                handlePageCrossingInLoadInstruction(address, Register.X);
+                currInstruction.absoluteAddress = (address + y.getValue()) & 0xFFFF;
+                handlePageCrossingInLoadInstruction(address, x);
             }
-            case 1 -> x = fetch(currInstruction.absoluteAddress);
+            case 1 -> x.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
 
