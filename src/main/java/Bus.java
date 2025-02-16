@@ -1,16 +1,7 @@
-public class Bus {
+public interface Bus {
+    int fetch(int address);
 
-    private WRAM wram;
+    void loadWRamState(WRAM wram);
 
-    public Bus(WRAM wram) {
-        this.wram = wram;
-    }
-
-    public int fetch(int address) {
-        return wram.memory[address];
-    }
-
-    public void loadWRamState(WRAM wram) {
-        this.wram = wram;
-    }
+    void write(int effectiveAddress, int value);
 }

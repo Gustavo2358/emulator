@@ -98,6 +98,10 @@ public class CPU {
         return bus.fetch(address) & 0xFF;
     }
 
+    private void write(int effectiveAddress, int value) {
+        bus.write(effectiveAddress, value);
+    }
+
     public void runCycle() {
         if(isOpCode()) {
             decodeOpCode(fetch());
@@ -128,13 +132,20 @@ public class CPU {
             case 0xB6 -> loadInstructionInitialState(4, Instruction.LDX, AddressingMode.ZPG_Y);
             case 0xAE -> loadInstructionInitialState(4, Instruction.LDX, AddressingMode.ABS);
             case 0xBE -> loadInstructionInitialState(5, Instruction.LDX, AddressingMode.ABS_Y);
-            //LDY opcodes:
+            // LDY opcodes:
             case 0xA0 -> loadInstructionInitialState(2, Instruction.LDY, AddressingMode.IMM);
             case 0xA4 -> loadInstructionInitialState(3, Instruction.LDY, AddressingMode.ZPG);
             case 0xAC -> loadInstructionInitialState(4, Instruction.LDY, AddressingMode.ABS);
             case 0xB4 -> loadInstructionInitialState(4, Instruction.LDY, AddressingMode.ZPG_X);
             case 0xBC -> loadInstructionInitialState(5, Instruction.LDY, AddressingMode.ABS_X);
-
+            // STA opcodes:
+            case 0x85 -> loadInstructionInitialState(3, Instruction.STA, AddressingMode.ZPG);
+            case 0x95 -> loadInstructionInitialState(4, Instruction.STA, AddressingMode.ZPG_X);
+            case 0x8D -> loadInstructionInitialState(4, Instruction.STA, AddressingMode.ABS);
+            case 0x9D -> loadInstructionInitialState(5, Instruction.STA, AddressingMode.ABS_X);
+            case 0x99 -> loadInstructionInitialState(5, Instruction.STA, AddressingMode.ABS_Y);
+            case 0x81 -> loadInstructionInitialState(6, Instruction.STA, AddressingMode.IND_X);
+            case 0x91 -> loadInstructionInitialState(6, Instruction.STA, AddressingMode.IND_Y);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -144,6 +155,7 @@ public class CPU {
             case LDA -> LDA();
             case LDX -> LDX();
             case LDY -> LDY();
+            case STA -> STA();
         }
     }
 
@@ -208,6 +220,20 @@ public class CPU {
         zero = (x.getValue() == 0);
         negative = (x.getValue() & 0x80) != 0;
     }
+
+    private void STA() {
+        switch (currInstruction.addressingMode) {
+            case ZPG -> handleStore_ZeroPage();
+//            case ZPG_X -> handleStore_ZeroPageIndexed(x);
+//            case ABS -> handleStore_Absolute();
+//            case ABS_X -> handleStore_AbsoluteIndexed(x);
+//            case ABS_Y -> handleStore_AbsoluteIndexed(y);
+//            case IND_X -> handleStoreIndirectX();
+//            case IND_Y -> handleStoreIndirectY();
+            default -> throw new RuntimeException("Unsupported addressing mode for STA: " + currInstruction.addressingMode);
+        }
+    }
+
 
     private void handleLoad_ZeroPageMode(Register8Bit register) {
         switch (remainingCycles) {
@@ -274,4 +300,12 @@ public class CPU {
             case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
         }
     }
+
+    private void handleStore_ZeroPage() {
+        switch (remainingCycles) {
+            case 2 -> currInstruction.absoluteAddress = fetch();
+            case 1 -> write(currInstruction.absoluteAddress, a.getValue());
+        }
+    }
+
 }

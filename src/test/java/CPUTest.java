@@ -310,4 +310,22 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(0x42, state.getY());
     }
+
+    // #### STA ####
+
+    @Test
+    public void STA_ZeroPage() {
+        final int instructionCycles = 3;
+        final int STA_ZERO_PAGE_OPCODE = 0x85; // Opcode for STA Zero Page
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withInstruction(0x8000, STA_ZERO_PAGE_OPCODE, 0x10) // STA $10
+                .buildAndRun(instructionCycles, bus);
+
+        //Verify that memory at address 0x0010 now holds 0x42
+        assertEquals(0x42, bus.fetch(0x0010));
+    }
 }

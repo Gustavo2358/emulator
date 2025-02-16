@@ -1,5 +1,6 @@
 public enum Instruction {
     LDA,
     LDX,
-    LDY
+    LDY,
+    STA
 }

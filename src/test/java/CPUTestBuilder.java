@@ -105,7 +105,27 @@ public class CPUTestBuilder {
      * @return The CPU after running the specified cycles.
      */
     public CPU buildAndRun(int cycles) {
-        Bus bus = new Bus(wram);
+        Bus bus = new MockBus(wram);
+        CPU cpu = new CPU(bus);
+        EmulatorState state = new EmulatorState(cpuStateBuilder.build(), wram);
+        cpu.loadState(state);
+        cpu.fetchProgramCounter();
+        // Run the CPU for the specified number of cycles.
+        for (int i = 0; i < cycles; i++) {
+            cpu.runCycle();
+        }
+        return cpu;
+    }
+
+    /**
+     * Builds the CPU and runs it for the given number of cycles.
+     *
+     * @param cycles The number of CPU cycles to run.
+     * @param bus The bus.
+     * @return The CPU after running the specified cycles.
+     */
+    public CPU buildAndRun(int cycles, Bus bus) {
+        bus.loadWRamState(wram);
         CPU cpu = new CPU(bus);
         EmulatorState state = new EmulatorState(cpuStateBuilder.build(), wram);
         cpu.loadState(state);
