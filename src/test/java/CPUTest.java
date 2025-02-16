@@ -328,4 +328,106 @@ class CPUTest {
         //Verify that memory at address 0x0010 now holds 0x42
         assertEquals(0x42, bus.fetch(0x0010));
     }
+
+    @Test
+    public void STA_ZeroPageX() {
+        final int instructionCycles = 4;
+        final int STA_ZERO_PAGE_X_OPCODE = 0x95; // Opcode for STA Zero Page,X
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withRegisterX(0x05) // X = 0x05; effective address: 0x10 + 0x05 = 0x15
+                .withInstruction(0x8000, STA_ZERO_PAGE_X_OPCODE, 0x10) // STA $10,X
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x0015));
+    }
+
+    @Test
+    public void STA_Absolute() {
+        final int instructionCycles = 4;
+        final int STA_ABSOLUTE_OPCODE = 0x8D; // Opcode for STA Absolute
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withInstruction(0x8000, STA_ABSOLUTE_OPCODE, 0x00, 0x90) // STA $9000
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x9000));
+    }
+
+    @Test
+    public void STA_AbsoluteX() {
+        final int instructionCycles = 5;
+        final int STA_ABSOLUTE_X_OPCODE = 0x9D; // Opcode for STA Absolute,X
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withRegisterX(0x05) // Effective address: $9000 + 0x05 = 0x9005
+                .withInstruction(0x8000, STA_ABSOLUTE_X_OPCODE, 0x00, 0x90)
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x9005));
+    }
+
+    @Test
+    public void STA_AbsoluteY() {
+        final int instructionCycles = 5;
+        final int STA_ABSOLUTE_Y_OPCODE = 0x99; // Opcode for STA Absolute,Y
+
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withRegisterY(0x05) // Effective address: $9000 + 0x05 = 0x9005
+                .withInstruction(0x8000, STA_ABSOLUTE_Y_OPCODE, 0x00, 0x90)
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x9005));
+    }
+
+    @Test
+    public void STA_IndirectX() {
+        final int instructionCycles = 6;
+        final int STA_INDIRECT_X_OPCODE = 0x81; // Opcode for STA (Indirect,X)
+
+        // For (Indirect,X): the operand (0x10) is added to X (0x05) to get the zero page pointer at 0x15.
+        // The two-byte pointer at 0x15 points to the effective address.
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withRegisterX(0x05)
+                .withInstruction(0x8000, STA_INDIRECT_X_OPCODE, 0x10)
+                .withZeroPagePointer(0x15, 0x00, 0x90) // Pointer at 0x15 -> effective address 0x9000
+                .buildAndRun(instructionCycles, bus);
+
+        assertEquals(0x42, bus.fetch(0x9000));
+    }
+
+    @Test
+    public void STA_IndirectY() {
+        final int instructionCycles = 6;
+        final int STA_INDIRECT_Y_OPCODE = 0x91; // Opcode for STA (Indirect),Y
+
+        // For (Indirect),Y: the operand (0x10) gives a zero page pointer whose two-byte value is the base address.
+        // Then Y (0x05) is added to form the effective address.
+        Bus bus = new MockBus();
+        new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withRegisterY(0x05)
+                .withInstruction(0x8000, STA_INDIRECT_Y_OPCODE, 0x10)
+                .withZeroPagePointer(0x10, 0x00, 0x90) // Pointer at 0x10 -> base address 0x9000
+                .buildAndRun(instructionCycles, bus);
+
+        // Effective address: 0x9000 + 0x05 = 0x9005
+        assertEquals(0x42, bus.fetch(0x9005));
+    }
 }

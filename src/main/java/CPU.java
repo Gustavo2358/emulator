@@ -60,7 +60,7 @@ public class CPU {
         Instruction instruction;
         AddressingMode addressingMode;
 
-        int absoluteAddress;
+        int effectiveAddress;
         int operand;
     }
 
@@ -168,8 +168,8 @@ public class CPU {
     }
 
     private void handlePageCrossingInLoadInstruction(int address, Register8Bit register) {
-        if((address & 0xFF00) == (currInstruction.absoluteAddress & 0xFF00)) {
-            register.setValue(fetch(currInstruction.absoluteAddress));
+        if((address & 0xFF00) == (currInstruction.effectiveAddress & 0xFF00)) {
+            register.setValue(fetch(currInstruction.effectiveAddress));
             //avoid case 1 if no extra cycle is needed. This variable is already
             //decremented outside of this function, so if we decrement it here, we
             //make sure it will not reach case 1.
@@ -223,51 +223,51 @@ public class CPU {
 
     private void STA() {
         switch (currInstruction.addressingMode) {
-            case ZPG -> handleStore_ZeroPage();
-//            case ZPG_X -> handleStore_ZeroPageIndexed(x);
-//            case ABS -> handleStore_Absolute();
-//            case ABS_X -> handleStore_AbsoluteIndexed(x);
-//            case ABS_Y -> handleStore_AbsoluteIndexed(y);
-//            case IND_X -> handleStoreIndirectX();
-//            case IND_Y -> handleStoreIndirectY();
+            case ZPG -> handleStore_ZeroPage(a);
+            case ZPG_X -> handleStore_ZeroPageIndexed(a, x);
+            case ABS -> handleStore_Absolute(a);
+            case ABS_X -> handleSTAAbsoluteIndexed(x);
+            case ABS_Y -> handleSTAAbsoluteIndexed(y);
+            case IND_X -> handleSTAIndirectX();
+            case IND_Y -> handleSTAIndirectY();
             default -> throw new RuntimeException("Unsupported addressing mode for STA: " + currInstruction.addressingMode);
         }
     }
 
-
+    // LOAD INSTRUCTIONS
     private void handleLoad_ZeroPageMode(Register8Bit register) {
         switch (remainingCycles) {
-            case 2 -> currInstruction.absoluteAddress = fetch();
-            case 1 -> register.setValue(fetch(currInstruction.absoluteAddress));
+            case 2 -> currInstruction.effectiveAddress = fetch();
+            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
         }
     }
 
     private void handleLoad_AbsoluteMode(Register8Bit register) {
         switch (remainingCycles) {
-            case 3 -> currInstruction.absoluteAddress = fetch();
-            case 2 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
-            case 1 -> register.setValue(fetch(currInstruction.absoluteAddress));
+            case 3 -> currInstruction.effectiveAddress = fetch();
+            case 2 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
+            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
         }
     }
 
     private void handleLoad_ZeroPageIndexed(Register8Bit register, Register8Bit indexRegister) {
         switch (remainingCycles) {
-            case 3 -> currInstruction.absoluteAddress = fetch();
-            case 2 -> currInstruction.absoluteAddress = (currInstruction.absoluteAddress + indexRegister.getValue()) & 0xFF;
-            case 1 -> register.setValue(fetch(currInstruction.absoluteAddress));
+            case 3 -> currInstruction.effectiveAddress = fetch();
+            case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + indexRegister.getValue()) & 0xFF;
+            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
         }
     }
 
     private void handleLoad_AbsoluteIndexed(Register8Bit register, Register8Bit indexRegister) {
         switch (remainingCycles) {
-            case 4 -> currInstruction.absoluteAddress = fetch();
-            case 3 -> currInstruction.absoluteAddress = (fetch() << 8) | currInstruction.absoluteAddress;
+            case 4 -> currInstruction.effectiveAddress = fetch();
+            case 3 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
             case 2 -> {
-                var address = currInstruction.absoluteAddress;
-                currInstruction.absoluteAddress = (address + indexRegister.getValue()) & 0xFFFF;
+                var address = currInstruction.effectiveAddress;
+                currInstruction.effectiveAddress = (address + indexRegister.getValue()) & 0xFFFF;
                 handlePageCrossingInLoadInstruction(address, register);
             }
-            case 1 -> register.setValue(fetch(currInstruction.absoluteAddress));
+            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
         }
     }
 
@@ -275,37 +275,90 @@ public class CPU {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
-            case 3 -> currInstruction.absoluteAddress = fetch(currInstruction.operand);
+            case 3 -> currInstruction.effectiveAddress = fetch(currInstruction.operand);
             case 2 -> {
                 int highByte = fetch((currInstruction.operand + 1) & 0xFF);
-                currInstruction.absoluteAddress = ((highByte << 8) | currInstruction.absoluteAddress) & 0xFFFF;
+                currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
-            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
+            case 1 -> a.setValue(fetch(currInstruction.effectiveAddress));
         }
     }
 
     private void handleLDAIndirectYIndexed() {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
-            case 4 -> currInstruction.absoluteAddress = fetch(currInstruction.operand & 0xFF) ;
+            case 4 -> currInstruction.effectiveAddress = fetch(currInstruction.operand & 0xFF) ;
             case 3 -> {
                 int highByte = fetch((currInstruction.operand + 1) & 0xFF);
-                currInstruction.absoluteAddress = ((highByte << 8) | currInstruction.absoluteAddress) & 0xFFFF;
+                currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
             case 2 -> {
-                var address = currInstruction.absoluteAddress;
-                currInstruction.absoluteAddress = (address + y.getValue()) & 0xFFFF;
+                var address = currInstruction.effectiveAddress;
+                currInstruction.effectiveAddress = (address + y.getValue()) & 0xFFFF;
                 handlePageCrossingInLoadInstruction(address, a);
             }
-            case 1 -> a.setValue(fetch(currInstruction.absoluteAddress));
+            case 1 -> a.setValue(fetch(currInstruction.effectiveAddress));
         }
     }
 
-    private void handleStore_ZeroPage() {
+    // STORE INSTRUCTIONS
+    private void handleStore_ZeroPage(Register8Bit register) {
         switch (remainingCycles) {
-            case 2 -> currInstruction.absoluteAddress = fetch();
-            case 1 -> write(currInstruction.absoluteAddress, a.getValue());
+            case 2 -> currInstruction.effectiveAddress = fetch();
+            case 1 -> write(currInstruction.effectiveAddress, register.getValue());
         }
     }
+
+    private void handleStore_ZeroPageIndexed(Register8Bit register, Register8Bit index) {
+        switch (remainingCycles) {
+            case 3 -> currInstruction.effectiveAddress = fetch();
+            case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + index.getValue()) & 0xFF;
+            case 1 -> bus.write(currInstruction.effectiveAddress, register.getValue());
+        }
+    }
+
+    private void handleStore_Absolute(Register8Bit register) {
+        switch (remainingCycles) {
+            case 3 -> currInstruction.effectiveAddress = fetch();
+            case 2 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
+            case 1 -> bus.write(currInstruction.effectiveAddress, register.getValue());
+        }
+    }
+
+    private void handleSTAAbsoluteIndexed(Register8Bit index) {
+        switch (remainingCycles) {
+            case 4 -> currInstruction.effectiveAddress = fetch();
+            case 3 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
+            case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + index.getValue()) & 0xFFFF;
+            case 1 -> bus.write(currInstruction.effectiveAddress, a.getValue());
+        }
+    }
+
+    private void handleSTAIndirectX() {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.operand = fetch();
+            case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
+            case 3 -> currInstruction.effectiveAddress = fetch(currInstruction.operand);
+            case 2 -> {
+                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
+            }
+            case 1 -> bus.write(currInstruction.effectiveAddress, a.getValue());
+        }
+    }
+
+    private void handleSTAIndirectY() {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.operand = fetch();
+            case 4 -> currInstruction.effectiveAddress = fetch(currInstruction.operand & 0xFF);
+            case 3 -> {
+                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
+            }
+            case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + y.getValue()) & 0xFFFF;
+            case 1 -> bus.write(currInstruction.effectiveAddress, a.getValue());
+        }
+    }
+
 
 }
