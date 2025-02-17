@@ -154,7 +154,8 @@ public class CPU {
             case 0x84 -> loadInstructionInitialState(3, Instruction.STY, AddressingMode.ZPG);
             case 0x94 -> loadInstructionInitialState(4, Instruction.STY, AddressingMode.ZPG_X);
             case 0x8C -> loadInstructionInitialState(4, Instruction.STY, AddressingMode.ABS);
-
+            // TAX opcode
+            case 0xAA -> loadInstructionInitialState(2, Instruction.TAX, AddressingMode.IMP);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -168,6 +169,7 @@ public class CPU {
             case STA -> STA();
             case STX -> STX();
             case STY -> STY();
+            case TAX -> TAX();
         }
     }
 
@@ -262,6 +264,12 @@ public class CPU {
             case ABS -> handleStore_Absolute(y);
             default -> throw new RuntimeException("Unsupported addressing mode for STY: " + currInstruction.addressingMode);
         }
+    }
+
+    private void TAX() {
+        x.setValue(a.getValue());
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
     }
 
     // LOAD INSTRUCTIONS

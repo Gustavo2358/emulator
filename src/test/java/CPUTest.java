@@ -99,7 +99,7 @@ class CPUTest {
     @Test
     public void LDAZeroPageXIndexed() {
         final int instructionCycles = 4;
-        final int LDA_ZERO_PAGE_X_OPCODE = 0xB5; // Opcode for LDA Zero Page,X
+        final int LDA_ZERO_PAGE_X_OPCODE = 0xB5; // Opcode for LDA Zero-Page, X
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
@@ -167,7 +167,7 @@ class CPUTest {
                 .withResetVector(0x8000)
                 .withInstruction(0x8000, LDA_INDIRECT_X_OPCODE, 0x10)
                 .withRegisterX(0x05)
-                // Effective zero page pointer = (0x10 + 0x05) mod 256 = 0x15.
+                // Effective zero-page pointer = (0x10 + 0x05) mod 256 = 0x15.
                 // Set the pointer at zero page 0x15 to point to effective address 0x9000.
                 .withZeroPagePointer(0x15, 0x00, 0x90)
                 // Place the operand at the effective address 0x9000.
@@ -216,11 +216,11 @@ class CPUTest {
     @Test
     public void LDXZeroPageYIndexed() {
         final int instructionCycles = 4;
-        final int LDX_ZEROPAGE_Y_OPCODE = 0xB6; // Opcode for LDX Zero Page,Y
+        final int LDX_ZERO_PAGE_Y_OPCODE = 0xB6; // Opcode for LDX Zero-Page, Y
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, LDX_ZEROPAGE_Y_OPCODE, 0x10) // LDX $10,Y
+                .withInstruction(0x8000, LDX_ZERO_PAGE_Y_OPCODE, 0x10) // LDX $10,Y
                 .withRegisterY(0x05) // Y = 0x05; effective address = (0x10 + 0x05) mod 256 = 0x15
                 .withMemoryValue(0x0015, 0x42)
                 .buildAndRun(instructionCycles);
@@ -232,7 +232,7 @@ class CPUTest {
     @Test
     public void LDYZeroPageXIndexed() {
         final int instructionCycles = 4;
-        final int LDX_ZERO_PAGE_X_OPCODE = 0xB4; // Opcode for LDY Zero Page,X
+        final int LDX_ZERO_PAGE_X_OPCODE = 0xB4; // Opcode for LDY Zero-Page, X
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
@@ -332,7 +332,7 @@ class CPUTest {
     @Test
     public void STA_ZeroPageX() {
         final int instructionCycles = 4;
-        final int STA_ZERO_PAGE_X_OPCODE = 0x95; // Opcode for STA Zero Page,X
+        final int STA_ZERO_PAGE_X_OPCODE = 0x95; // Opcode for STA Zero-Page, X
 
         Bus bus = new MockBus();
         new CPUTestBuilder()
@@ -397,7 +397,7 @@ class CPUTest {
         final int instructionCycles = 6;
         final int STA_INDIRECT_X_OPCODE = 0x81; // Opcode for STA (Indirect,X)
 
-        // For (Indirect,X): the operand (0x10) is added to X (0x05) to get the zero page pointer at 0x15.
+        // For (Indirect,X): the operand (0x10) is added to X (0x05) to get the zero-page pointer at 0x15.
         // The two-byte pointer at 0x15 points to the effective address.
         Bus bus = new MockBus();
         new CPUTestBuilder()
@@ -416,7 +416,7 @@ class CPUTest {
         final int instructionCycles = 6;
         final int STA_INDIRECT_Y_OPCODE = 0x91; // Opcode for STA (Indirect),Y
 
-        // For (Indirect),Y: the operand (0x10) gives a zero page pointer whose two-byte value is the base address.
+        // For (Indirect),Y: the operand (0x10) gives a zero-page pointer whose two-byte value is the base address.
         // Then Y (0x05) is added to form the effective address.
         Bus bus = new MockBus();
         new CPUTestBuilder()
@@ -529,4 +529,60 @@ class CPUTest {
         assertEquals(0x42, bus.fetch(0x9000));
     }
 
+    //#### TAX ####
+
+
+    @Test
+    public void testTAX_NonZeroNonNegative() {
+        final int instructionCycles = 2;
+        final int TAX_IMPLIED_OPCODE = 0xAA;
+
+        // Set accumulator to a non-zero, non-negative value (0x42)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withInstruction(0x8000, TAX_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+        assertFalse(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void testTAX_ZeroFlag() {
+        final int instructionCycles = 2;
+        final int TAX_IMPLIED_OPCODE = 0xAA;
+
+        // Set accumulator to zero
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x00)
+                .withInstruction(0x8000, TAX_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x00, state.getX());
+        assertTrue(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void testTAX_NegativeFlag() {
+        final int instructionCycles = 2;
+        final int TAX_IMPLIED_OPCODE = 0xAA;
+
+        // Set accumulator to a value with the high bit set (e.g., 0x80)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x80)
+                .withInstruction(0x8000, TAX_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x80, state.getX());
+        assertFalse(state.isZero());
+        assertTrue(state.isNegative());
+    }
 }

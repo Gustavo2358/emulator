@@ -4,5 +4,6 @@ public enum Instruction {
     LDY,
     STA,
     STX,
-    STY
+    STY,
+    TAX
 }

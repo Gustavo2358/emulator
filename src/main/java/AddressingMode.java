@@ -7,5 +7,6 @@ public enum AddressingMode {
     ABS_X,
     ABS_Y,
     IND_X, //(indirect,X)
-    IND_Y //(indirect),Y
+    IND_Y, //(indirect),Y
+    IMP
 }
