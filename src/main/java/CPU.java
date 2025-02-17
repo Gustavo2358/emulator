@@ -3,7 +3,7 @@ import java.util.Objects;
 public class CPU {
 
     private int pc;
-    private int sp;
+    private final Register8Bit sp;
     private final Register8Bit a, x, y;
     private boolean carry;
     private boolean zero;
@@ -20,7 +20,7 @@ public class CPU {
         this.bus = bus;
 
         pc = 0x00;
-        sp = 0xFD;
+        sp = new Register8Bit(0xFD);
         a = new Register8Bit(0x00);
         x = new Register8Bit(0x00);
         y = new Register8Bit(0x00);
@@ -43,7 +43,7 @@ public class CPU {
     private void loadCpuState(CpuState cpuState) {
         if(Objects.nonNull(cpuState)) {
             this.pc = cpuState.getPc();
-            this.sp = cpuState.getSp();
+            this.sp.setValue(cpuState.getSp());
             this.a.setValue(cpuState.getA());
             this.x.setValue(cpuState.getX());
             this.y.setValue(cpuState.getY());
@@ -67,7 +67,7 @@ public class CPU {
     public CpuState getState(){
         return new CpuState.Builder()
                 .pc(pc)
-                .sp(sp)
+                .sp(sp.getValue())
                 .a(a.getValue())
                 .x(x.getValue())
                 .y(y.getValue())
@@ -156,7 +156,10 @@ public class CPU {
             case 0x8C -> loadInstructionInitialState(4, Instruction.STY, AddressingMode.ABS);
             // TAX opcode
             case 0xAA -> loadInstructionInitialState(2, Instruction.TAX, AddressingMode.IMP);
-
+            // TAY opcode:
+            case 0xA8 -> loadInstructionInitialState(2, Instruction.TAY, AddressingMode.IMP);
+            // TSX opcode
+            case 0xBA -> loadInstructionInitialState(2, Instruction.TSX, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -170,6 +173,8 @@ public class CPU {
             case STX -> STX();
             case STY -> STY();
             case TAX -> TAX();
+            case TAY -> TAY();
+            case TSX -> TSX();
         }
     }
 
@@ -268,6 +273,18 @@ public class CPU {
 
     private void TAX() {
         x.setValue(a.getValue());
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
+    }
+
+    private void TAY() {
+        y.setValue(a.getValue());
+        zero = (y.getValue() == 0);
+        negative = (y.getValue() & 0x80) != 0;
+    }
+
+    private void TSX() {
+        x.setValue(sp.getValue());
         zero = (x.getValue() == 0);
         negative = (x.getValue() & 0x80) != 0;
     }

@@ -99,6 +99,17 @@ public class CPUTestBuilder {
     }
 
     /**
+     * Sets the value of the stack pointer.
+     *
+     * @param value The value to load into the stack pointer.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withStackPointer(int value) {
+        cpuStateBuilder.sp(value);
+        return this;
+    }
+
+    /**
      * Builds the CPU and runs it for the given number of cycles.
      *
      * @param cycles The number of CPU cycles to run.

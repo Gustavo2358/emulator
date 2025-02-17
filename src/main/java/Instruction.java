@@ -5,5 +5,7 @@ public enum Instruction {
     STA,
     STX,
     STY,
-    TAX
+    TAX,
+    TAY,
+    TSX
 }

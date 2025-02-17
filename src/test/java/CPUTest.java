@@ -531,7 +531,6 @@ class CPUTest {
 
     //#### TAX ####
 
-
     @Test
     public void testTAX_NonZeroNonNegative() {
         final int instructionCycles = 2;
@@ -578,6 +577,118 @@ class CPUTest {
                 .withResetVector(0x8000)
                 .withRegisterA(0x80)
                 .withInstruction(0x8000, TAX_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x80, state.getX());
+        assertFalse(state.isZero());
+        assertTrue(state.isNegative());
+    }
+
+    //#### TAY ####
+
+    @Test
+    public void testTAY_NonZeroNonNegative() {
+        final int instructionCycles = 2;
+        final int TAY_IMPLIED_OPCODE = 0xA8;
+
+        // Set accumulator to a non-zero, non-negative value (0x42)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x42)
+                .withInstruction(0x8000, TAY_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getY());
+        assertFalse(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void testTAY_ZeroFlag() {
+        final int instructionCycles = 2;
+        final int TAY_IMPLIED_OPCODE = 0xA8;
+
+        // Set accumulator to zero
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x00)
+                .withInstruction(0x8000, TAY_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x00, state.getY());
+        assertTrue(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void testTAY_NegativeFlag() {
+        final int instructionCycles = 2;
+        final int TAY_IMPLIED_OPCODE = 0xA8;
+
+        // Set accumulator to a value with the high bit set (e.g., 0x80)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x80)
+                .withInstruction(0x8000, TAY_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x80, state.getY());
+        assertFalse(state.isZero());
+        assertTrue(state.isNegative());
+    }
+
+    //#### TSX ####
+
+    @Test
+    public void testTSX_NonZeroNonNegative() {
+        final int instructionCycles = 2;
+        final int TSX_IMPLIED_OPCODE = 0xBA;
+
+        // Set stack pointer to a non-zero, non-negative value (0x42)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withStackPointer(0x42)
+                .withInstruction(0x8000, TSX_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getX());
+        assertFalse(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void testTSX_ZeroFlag() {
+        final int instructionCycles = 2;
+        final int TSX_IMPLIED_OPCODE = 0xBA;
+
+        // Set stack pointer to zero
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withStackPointer(0x00)
+                .withInstruction(0x8000, TSX_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x00, state.getX());
+        assertTrue(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void testTSX_NegativeFlag() {
+        final int instructionCycles = 2;
+        final int TSX_IMPLIED_OPCODE = 0xBA;
+
+        // Set stack pointer to a value with the high bit set (e.g., 0x80)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withStackPointer(0x80)
+                .withInstruction(0x8000, TSX_IMPLIED_OPCODE)
                 .buildAndRun(instructionCycles);
 
         CpuState state = cpu.getState();
