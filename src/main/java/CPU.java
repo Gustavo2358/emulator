@@ -160,6 +160,12 @@ public class CPU {
             case 0xA8 -> loadInstructionInitialState(2, Instruction.TAY, AddressingMode.IMP);
             // TSX opcode
             case 0xBA -> loadInstructionInitialState(2, Instruction.TSX, AddressingMode.IMP);
+            // TXA opcode:
+            case 0x8A -> loadInstructionInitialState(2, Instruction.TXA, AddressingMode.IMP);
+            // TXS opcode:
+            case 0x9A -> loadInstructionInitialState(2, Instruction.TXS, AddressingMode.IMP);
+            // TYA opcode:
+            case 0x98 -> loadInstructionInitialState(2, Instruction.TYA, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -175,6 +181,9 @@ public class CPU {
             case TAX -> TAX();
             case TAY -> TAY();
             case TSX -> TSX();
+            case TXA -> TXA();
+            case TXS -> TXS();
+            case TYA -> TYA();
         }
     }
 
@@ -287,6 +296,22 @@ public class CPU {
         x.setValue(sp.getValue());
         zero = (x.getValue() == 0);
         negative = (x.getValue() & 0x80) != 0;
+    }
+
+    private void TXA() {
+        a.setValue(x.getValue());
+        zero = (a.getValue() == 0);
+        negative = (a.getValue() & 0x80) != 0;
+    }
+
+    private void TXS() {
+        sp.setValue(x.getValue());
+    }
+
+    private void TYA() {
+        a.setValue(y.getValue());
+        zero = (a.getValue() == 0);
+        negative = (a.getValue() & 0x80) != 0;
     }
 
     // LOAD INSTRUCTIONS

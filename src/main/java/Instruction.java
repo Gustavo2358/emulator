@@ -7,5 +7,8 @@ public enum Instruction {
     STY,
     TAX,
     TAY,
-    TSX
+    TSX,
+    TXA,
+    TXS,
+    TYA
 }

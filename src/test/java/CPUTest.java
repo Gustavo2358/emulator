@@ -532,7 +532,7 @@ class CPUTest {
     //#### TAX ####
 
     @Test
-    public void testTAX_NonZeroNonNegative() {
+    public void TAX_NonZeroNonNegative() {
         final int instructionCycles = 2;
         final int TAX_IMPLIED_OPCODE = 0xAA;
 
@@ -550,7 +550,7 @@ class CPUTest {
     }
 
     @Test
-    public void testTAX_ZeroFlag() {
+    public void TAX_ZeroFlag() {
         final int instructionCycles = 2;
         final int TAX_IMPLIED_OPCODE = 0xAA;
 
@@ -568,7 +568,7 @@ class CPUTest {
     }
 
     @Test
-    public void testTAX_NegativeFlag() {
+    public void TAX_NegativeFlag() {
         final int instructionCycles = 2;
         final int TAX_IMPLIED_OPCODE = 0xAA;
 
@@ -588,7 +588,7 @@ class CPUTest {
     //#### TAY ####
 
     @Test
-    public void testTAY_NonZeroNonNegative() {
+    public void TAY_NonZeroNonNegative() {
         final int instructionCycles = 2;
         final int TAY_IMPLIED_OPCODE = 0xA8;
 
@@ -606,7 +606,7 @@ class CPUTest {
     }
 
     @Test
-    public void testTAY_ZeroFlag() {
+    public void TAY_ZeroFlag() {
         final int instructionCycles = 2;
         final int TAY_IMPLIED_OPCODE = 0xA8;
 
@@ -624,7 +624,7 @@ class CPUTest {
     }
 
     @Test
-    public void testTAY_NegativeFlag() {
+    public void TAY_NegativeFlag() {
         final int instructionCycles = 2;
         final int TAY_IMPLIED_OPCODE = 0xA8;
 
@@ -644,7 +644,7 @@ class CPUTest {
     //#### TSX ####
 
     @Test
-    public void testTSX_NonZeroNonNegative() {
+    public void TSX_NonZeroNonNegative() {
         final int instructionCycles = 2;
         final int TSX_IMPLIED_OPCODE = 0xBA;
 
@@ -662,7 +662,7 @@ class CPUTest {
     }
 
     @Test
-    public void testTSX_ZeroFlag() {
+    public void TSX_ZeroFlag() {
         final int instructionCycles = 2;
         final int TSX_IMPLIED_OPCODE = 0xBA;
 
@@ -680,7 +680,7 @@ class CPUTest {
     }
 
     @Test
-    public void testTSX_NegativeFlag() {
+    public void TSX_NegativeFlag() {
         final int instructionCycles = 2;
         final int TSX_IMPLIED_OPCODE = 0xBA;
 
@@ -696,4 +696,128 @@ class CPUTest {
         assertFalse(state.isZero());
         assertTrue(state.isNegative());
     }
+
+    //#### TXA ####
+
+    @Test
+    public void TXA_NonZeroNonNegative() {
+        final int instructionCycles = 2;
+        final int TXA_IMPLIED_OPCODE = 0x8A;
+
+        // Set X register to a non-zero, non-negative value (0x42)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(0x42)
+                .withInstruction(0x8000, TXA_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getA());
+        assertFalse(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void TXA_ZeroFlag() {
+        final int instructionCycles = 2;
+        final int TXA_IMPLIED_OPCODE = 0x8A;
+
+        // Set X register to zero
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(0x00)
+                .withInstruction(0x8000, TXA_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x00, state.getA());
+        assertTrue(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void TXA_NegativeFlag() {
+        final int instructionCycles = 2;
+        final int TXA_IMPLIED_OPCODE = 0x8A;
+
+        // Set X register to a value with the high bit set (e.g., 0x80)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(0x80)
+                .withInstruction(0x8000, TXA_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x80, state.getA());
+        assertFalse(state.isZero());
+        assertTrue(state.isNegative());
+    }
+    @Test
+    public void TXS() {
+        final int instructionCycles = 2;
+        final int TXS_IMPLIED_OPCODE = 0x9A;
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(0x42)
+                .withInstruction(0x8000, TXS_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getSp());
+    }
+
+    //#### TYA ####
+
+    @Test
+    public void TYA_NonZeroNonNegative() {
+        final int instructionCycles = 2;
+        final int TYA_IMPLIED_OPCODE = 0x98;
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(0x42)
+                .withInstruction(0x8000, TYA_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x42, state.getA());
+        assertFalse(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void TYA_ZeroFlag() {
+        final int instructionCycles = 2;
+        final int TYA_IMPLIED_OPCODE = 0x98;
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(0x00)
+                .withInstruction(0x8000, TYA_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x00, state.getA());
+        assertTrue(state.isZero());
+        assertFalse(state.isNegative());
+    }
+
+    @Test
+    public void TYA_NegativeFlag() {
+        final int instructionCycles = 2;
+        final int TYA_IMPLIED_OPCODE = 0x98;
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(0x80)
+                .withInstruction(0x8000, TYA_IMPLIED_OPCODE)
+                .buildAndRun(instructionCycles);
+
+        CpuState state = cpu.getState();
+        assertEquals(0x80, state.getA());
+        assertFalse(state.isZero());
+        assertTrue(state.isNegative());
+    }
+
 }
