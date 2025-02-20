@@ -971,7 +971,54 @@ class CPUTest {
         assertEquals(valueToPull, cpu.getState().getA());
         assertEquals(valueToPull == 0, cpu.getState().isZero());
         assertEquals((valueToPull & 0x80) != 0, cpu.getState().isNegative());
-        if(cpu.getState().isNegative()) System.out.printf("NEGATIVE: valueToPull: %s\n", valueToPull);
+        int expectedSP = (initialSP + 1) & 0xFF;
+        assertEquals(expectedSP, cpu.getState().getSp());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "48",  // Only constant bits (0x30), no flags set.
+            "49",  // Constant bits plus the Carry flag (0x30 | 0x01).
+            "50",  // Constant bits plus the Zero flag (0x30 | 0x02).
+            "52",  // Constant bits plus the Interrupt Disable flag (0x30 | 0x04).
+            "56",  // Constant bits plus the Decimal flag (0x30 | 0x08).
+            "112", // Constant bits plus the Overflow flag (0x30 | 0x40).
+            "176", // Constant bits plus the Negative flag (0x30 | 0x80).
+            "255"  // All bits set (i.e. all flags true).
+    })
+    public void PLP_Parameterized(int valueToPull) {
+        final int instructionCycles = 4;
+        final int PLP_OPCODE = 0x28; // PLP opcode
+        final int initialSP = 0xFC;  // initial stack pointer value before PLP
+        final int resetAddress = 0x8000;
+
+        // PLP increments SP and pulls from address 0x0100 | (initialSP + 1)
+        int expectedStackAddress = 0x0100 | (initialSP + 1);
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withStackPointer(initialSP)
+                .withMemoryValue(expectedStackAddress, valueToPull)
+                .withInstruction(resetAddress, PLP_OPCODE);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+
+        // Determine expected flag booleans from the pulled value:
+        boolean expectedNegative         = (valueToPull & 0x80) != 0;
+        boolean expectedOverflow         = (valueToPull & 0x40) != 0;
+        boolean expectedDecimal          = (valueToPull & 0x08) != 0;
+        boolean expectedInterruptDisable = (valueToPull & 0x04) != 0;
+        boolean expectedZero             = (valueToPull & 0x02) != 0;
+        boolean expectedCarry            = (valueToPull & 0x01) != 0;
+
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+        assertEquals(expectedOverflow, cpu.getState().isOverflow());
+        assertEquals(expectedDecimal, cpu.getState().isDecimal());
+        assertEquals(expectedInterruptDisable, cpu.getState().isInterruptDisable());
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedCarry, cpu.getState().isCarry());
+
+        // Verify that the stack pointer has been incremented by 1.
         int expectedSP = (initialSP + 1) & 0xFF;
         assertEquals(expectedSP, cpu.getState().getSp());
     }

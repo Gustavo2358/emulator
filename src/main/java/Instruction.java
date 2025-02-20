@@ -13,5 +13,6 @@ public enum Instruction {
     TYA,
     PHA,
     PHP,
-    PLA
+    PLA,
+    PLP
 }
