@@ -24,7 +24,7 @@ class CPUTest {
         assertEquals(0x42, getRegister.apply(state));
     }
 
-    private static Stream<Arguments> provideLoadImmediateArguments(){
+    private static Stream<Arguments> provideLoadImmediateArguments() {
         final int LDA_IMMEDIATE_OPCODE = 0xA9; // Opcode for LDA Immediate
         final Function<CpuState, Integer> getA = CpuState::getA;
         final int LDX_IMMEDIATE_OPCODE = 0xA2; // Opcode for LDX Immediate
@@ -53,7 +53,7 @@ class CPUTest {
         assertEquals(0x42, getRegister.apply(state));
     }
 
-    private static Stream<Arguments> provideLoadAbsoluteArguments(){
+    private static Stream<Arguments> provideLoadAbsoluteArguments() {
         final int LDA_ABSOLUTE_OPCODE = 0xAD; // Opcode for LDA Absolute
         final Function<CpuState, Integer> getA = CpuState::getA;
         final int LDX_ABSOLUTE_OPCODE = 0xAE; // Opcode for LDX Absolute
@@ -82,7 +82,7 @@ class CPUTest {
         assertEquals(0x42, getRegister.apply(state));
     }
 
-    private static Stream<Arguments> provideLoadZeroPageArguments(){
+    private static Stream<Arguments> provideLoadZeroPageArguments() {
         final int LDA_ZERO_PAGE_OPCODE = 0xA5; // Opcode for LDA Zero Page
         final Function<CpuState, Integer> getA = CpuState::getA;
         final int LDX_ZERO_PAGE_OPCODE = 0xA6; // Opcode for LDX Zero Page
@@ -125,7 +125,7 @@ class CPUTest {
                 .withInstruction(0x8000, opCode, 0x00, 0x90)  // Base address: 0x9000
                 .withMemoryValue(0x9005, 0x42); // Place the operand at effective address 0x9005
 
-        if(register == 'X'){
+        if (register == 'X') {
             builder.withRegisterX(0x05);
         } else {
             builder.withRegisterY(0x05);
@@ -137,7 +137,7 @@ class CPUTest {
     }
 
     @ParameterizedTest
-    @CsvSource({ "0xBD, X", "0xB9, Y" })
+    @CsvSource({"0xBD, X", "0xB9, Y"})
     public void LDAAbsoluteXIndexed_PageCrossing(int opCode, char register) {
         final int instructionCycles = 5;
 
@@ -147,7 +147,7 @@ class CPUTest {
                 .withMemoryValue(0x9100, 0x42); // Place operand at effective address 0x9100.
 
         // Set register = 0x01, so effective address = 0x90FF + 0x01 = 0x9100.
-        if(register == 'X'){
+        if (register == 'X') {
             builder.withRegisterX(0x01);
         } else {
             builder.withRegisterY(0x01);
@@ -752,6 +752,7 @@ class CPUTest {
         assertFalse(state.isZero());
         assertTrue(state.isNegative());
     }
+
     @Test
     public void TXS() {
         final int instructionCycles = 2;
@@ -917,7 +918,7 @@ class CPUTest {
             "true, true, true, true, true, true, 255"
     })
     public void PHP_FlagsToBits(boolean negative, boolean overflow, boolean interruptDisable,
-                                    boolean decimal, boolean zero, boolean carry, int expectedFlags) {
+                                boolean decimal, boolean zero, boolean carry, int expectedFlags) {
         final int instructionCycles = 3;
         final int PHP_OPCODE = 0x08;
         final int initialSP = 0xFD;
@@ -941,6 +942,37 @@ class CPUTest {
         assertEquals(expectedFlags, actualFlags);
 
         int expectedSP = (initialSP - 1) & 0xFF;
+        assertEquals(expectedSP, cpu.getState().getSp());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0",
+            "42",
+            "128",
+            "255"
+    })
+    public void PLA_Parameterized(int valueToPull) {
+        final int instructionCycles = 4;
+        final int PLA_OPCODE = 0x68;
+        final int initialSP = 0xFC;
+        final int resetAddress = 0x8000;
+
+        int expectedStackAddress = 0x0100 | (initialSP + 1);
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withStackPointer(initialSP)
+                .withMemoryValue(expectedStackAddress, valueToPull)
+                .withInstruction(resetAddress, PLA_OPCODE);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+
+        assertEquals(valueToPull, cpu.getState().getA());
+        assertEquals(valueToPull == 0, cpu.getState().isZero());
+        assertEquals((valueToPull & 0x80) != 0, cpu.getState().isNegative());
+        if(cpu.getState().isNegative()) System.out.printf("NEGATIVE: valueToPull: %s\n", valueToPull);
+        int expectedSP = (initialSP + 1) & 0xFF;
         assertEquals(expectedSP, cpu.getState().getSp());
     }
 }

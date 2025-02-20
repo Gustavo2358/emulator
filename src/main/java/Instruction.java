@@ -12,5 +12,6 @@ public enum Instruction {
     TXS,
     TYA,
     PHA,
-    PHP
+    PHP,
+    PLA
 }

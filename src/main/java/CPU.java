@@ -170,6 +170,8 @@ public class CPU {
             case 0x48 -> loadInstructionInitialState(3, Instruction.PHA, AddressingMode.IMP);
             // PHP opcode:
             case 0x08 -> loadInstructionInitialState(3, Instruction.PHP, AddressingMode.IMP);
+            // PLA opcode:
+            case 0x68 -> loadInstructionInitialState(4, Instruction.PLA, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -190,6 +192,7 @@ public class CPU {
             case TYA -> TYA();
             case PHA -> PHA();
             case PHP -> PHP();
+            case PLA -> PLA();
         }
     }
 
@@ -347,6 +350,17 @@ public class CPU {
             case 2 -> write(0x0100 | sp.getValue(), flagsToBits());
             case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
         }
+    }
+
+    private void PLA() {
+        switch (remainingCycles) {
+            case 3 -> {} //dummy read
+            case 2 -> sp.setValue((sp.getValue() + 1) & 0xFF);
+            case 1 -> a.setValue(fetch(0x0100 | sp.getValue()));
+        }
+
+        zero = (a.getValue() == 0);
+        negative = (a.getValue() & 0x80) != 0;
     }
 
     // LOAD INSTRUCTIONS
