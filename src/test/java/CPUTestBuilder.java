@@ -110,6 +110,72 @@ public class CPUTestBuilder {
     }
 
     /**
+     * Sets the Negative flag.
+     *
+     * @param flag The value for the Negative flag.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withFlagNegative(boolean flag) {
+        cpuStateBuilder.negative(flag);
+        return this;
+    }
+
+    /**
+     * Sets the Overflow flag.
+     *
+     * @param flag The value for the Overflow flag.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withFlagOverflow(boolean flag) {
+        cpuStateBuilder.overflow(flag);
+        return this;
+    }
+
+    /**
+     * Sets the Interrupt Disable flag.
+     *
+     * @param flag The value for the Interrupt Disable flag.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withFlagInterruptDisable(boolean flag) {
+        cpuStateBuilder.interruptDisable(flag);
+        return this;
+    }
+
+    /**
+     * Sets the Decimal flag.
+     *
+     * @param flag The value for the Decimal flag.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withFlagDecimal(boolean flag) {
+        cpuStateBuilder.decimal(flag);
+        return this;
+    }
+
+    /**
+     * Sets the Zero flag.
+     *
+     * @param flag The value for the Zero flag.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withFlagZero(boolean flag) {
+        cpuStateBuilder.zero(flag);
+        return this;
+    }
+
+    /**
+     * Sets the Carry flag.
+     *
+     * @param flag The value for the Carry flag.
+     * @return The builder instance.
+     */
+    public CPUTestBuilder withFlagCarry(boolean flag) {
+        cpuStateBuilder.carry(flag);
+        return this;
+    }
+
+    /**
      * Builds the CPU and runs it for the given number of cycles.
      *
      * @param cycles The number of CPU cycles to run.

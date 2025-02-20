@@ -166,6 +166,10 @@ public class CPU {
             case 0x9A -> loadInstructionInitialState(2, Instruction.TXS, AddressingMode.IMP);
             // TYA opcode:
             case 0x98 -> loadInstructionInitialState(2, Instruction.TYA, AddressingMode.IMP);
+            // PHA opcode:
+            case 0x48 -> loadInstructionInitialState(3, Instruction.PHA, AddressingMode.IMP);
+            // PHP opcode:
+            case 0x08 -> loadInstructionInitialState(3, Instruction.PHP, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -184,6 +188,8 @@ public class CPU {
             case TXA -> TXA();
             case TXS -> TXS();
             case TYA -> TYA();
+            case PHA -> PHA();
+            case PHP -> PHP();
         }
     }
 
@@ -312,6 +318,35 @@ public class CPU {
         a.setValue(y.getValue());
         zero = (a.getValue() == 0);
         negative = (a.getValue() & 0x80) != 0;
+    }
+
+    private void PHA() {
+        switch (remainingCycles) {
+            case 2 -> write(0x0100 | sp.getValue(), a.getValue());
+            case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
+        }
+    }
+
+    // Converts the current CPU flags into an 8-bit representation.
+    // Bit layout: N V 1 B D I Z C
+    private int flagsToBits() {
+        int flags = 0;
+        if (negative) flags |= 0x80;
+        if (overflow) flags |= 0x40;
+        flags |= 0x20;
+        flags |= 0x10;
+        if (decimal) flags |= 0x08;
+        if (interruptDisable) flags |= 0x04;
+        if (zero) flags |= 0x02;
+        if (carry) flags |= 0x01;
+        return flags;
+    }
+
+    private void PHP() {
+        switch (remainingCycles) {
+            case 2 -> write(0x0100 | sp.getValue(), flagsToBits());
+            case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
+        }
     }
 
     // LOAD INSTRUCTIONS

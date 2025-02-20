@@ -10,5 +10,7 @@ public enum Instruction {
     TSX,
     TXA,
     TXS,
-    TYA
+    TYA,
+    PHA,
+    PHP
 }

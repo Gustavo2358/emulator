@@ -820,4 +820,127 @@ class CPUTest {
         assertTrue(state.isNegative());
     }
 
+    // ### PHA ###
+
+    @Test
+    public void PHA_Implied() {
+        final int instructionCycles = 3;
+        final int PHA_OPCODE = 0x48;
+
+        final int initialSP = 0xFD;
+        final int accumulatorValue = 0x37;
+        final int resetAddress = 0x8000;
+
+        Bus bus = new MockBus();
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterA(accumulatorValue)
+                .withStackPointer(initialSP)
+                .withInstruction(resetAddress, PHA_OPCODE)
+                .buildAndRun(instructionCycles, bus);
+
+        // The PHA instruction pushes A onto the stack at 0x0100 + SP before decrementing SP.
+        int expectedStackAddress = 0x0100 | initialSP;
+        assertEquals(accumulatorValue, bus.fetch(expectedStackAddress));
+
+        // Verify that the stack pointer is decremented by 1.
+        int expectedSP = (initialSP - 1) & 0xFF;
+        assertEquals(expectedSP, cpu.getState().getSp());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "false, false, false, false, false, false, 48",
+            "false, false, false, false, false, true, 49",
+            "false, false, false, false, true, false, 50",
+            "false, false, false, false, true, true, 51",
+            "false, false, false, true, false, false, 56",
+            "false, false, false, true, false, true, 57",
+            "false, false, false, true, true, false, 58",
+            "false, false, false, true, true, true, 59",
+            "false, false, true, false, false, false, 52",
+            "false, false, true, false, false, true, 53",
+            "false, false, true, false, true, false, 54",
+            "false, false, true, false, true, true, 55",
+            "false, false, true, true, false, false, 60",
+            "false, false, true, true, false, true, 61",
+            "false, false, true, true, true, false, 62",
+            "false, false, true, true, true, true, 63",
+            "false, true, false, false, false, false, 112",
+            "false, true, false, false, false, true, 113",
+            "false, true, false, false, true, false, 114",
+            "false, true, false, false, true, true, 115",
+            "false, true, false, true, false, false, 120",
+            "false, true, false, true, false, true, 121",
+            "false, true, false, true, true, false, 122",
+            "false, true, false, true, true, true, 123",
+            "false, true, true, false, false, false, 116",
+            "false, true, true, false, false, true, 117",
+            "false, true, true, false, true, false, 118",
+            "false, true, true, false, true, true, 119",
+            "false, true, true, true, false, false, 124",
+            "false, true, true, true, false, true, 125",
+            "false, true, true, true, true, false, 126",
+            "false, true, true, true, true, true, 127",
+            "true, false, false, false, false, false, 176",
+            "true, false, false, false, false, true, 177",
+            "true, false, false, false, true, false, 178",
+            "true, false, false, false, true, true, 179",
+            "true, false, false, true, false, false, 184",
+            "true, false, false, true, false, true, 185",
+            "true, false, false, true, true, false, 186",
+            "true, false, false, true, true, true, 187",
+            "true, false, true, false, false, false, 180",
+            "true, false, true, false, false, true, 181",
+            "true, false, true, false, true, false, 182",
+            "true, false, true, false, true, true, 183",
+            "true, false, true, true, false, false, 188",
+            "true, false, true, true, false, true, 189",
+            "true, false, true, true, true, false, 190",
+            "true, false, true, true, true, true, 191",
+            "true, true, false, false, false, false, 240",
+            "true, true, false, false, false, true, 241",
+            "true, true, false, false, true, false, 242",
+            "true, true, false, false, true, true, 243",
+            "true, true, false, true, false, false, 248",
+            "true, true, false, true, false, true, 249",
+            "true, true, false, true, true, false, 250",
+            "true, true, false, true, true, true, 251",
+            "true, true, true, false, false, false, 244",
+            "true, true, true, false, false, true, 245",
+            "true, true, true, false, true, false, 246",
+            "true, true, true, false, true, true, 247",
+            "true, true, true, true, false, false, 252",
+            "true, true, true, true, false, true, 253",
+            "true, true, true, true, true, false, 254",
+            "true, true, true, true, true, true, 255"
+    })
+    public void PHP_FlagsToBits(boolean negative, boolean overflow, boolean interruptDisable,
+                                    boolean decimal, boolean zero, boolean carry, int expectedFlags) {
+        final int instructionCycles = 3;
+        final int PHP_OPCODE = 0x08;
+        final int initialSP = 0xFD;
+        final int resetAddress = 0x8000;
+
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withFlagNegative(negative)
+                .withFlagOverflow(overflow)
+                .withFlagInterruptDisable(interruptDisable)
+                .withFlagDecimal(decimal)
+                .withFlagZero(zero)
+                .withFlagCarry(carry)
+                .withStackPointer(initialSP)
+                .withInstruction(resetAddress, PHP_OPCODE)
+                .buildAndRun(instructionCycles, bus);
+
+        int expectedStackAddress = 0x0100 | initialSP;
+        int actualFlags = bus.fetch(expectedStackAddress);
+        assertEquals(expectedFlags, actualFlags);
+
+        int expectedSP = (initialSP - 1) & 0xFF;
+        assertEquals(expectedSP, cpu.getState().getSp());
+    }
 }
