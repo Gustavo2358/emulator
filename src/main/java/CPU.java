@@ -1,4 +1,5 @@
 import java.util.Objects;
+import java.util.function.Function;
 
 public class CPU {
 
@@ -62,6 +63,7 @@ public class CPU {
 
         int effectiveAddress;
         int operand;
+        int tempLatch;
     }
 
     public CpuState getState(){
@@ -174,6 +176,9 @@ public class CPU {
             case 0x68 -> loadInstructionInitialState(4, Instruction.PLA, AddressingMode.IMP);
             //PLP opcode
             case 0x28 -> loadInstructionInitialState(4, Instruction.PLP, AddressingMode.IMP);
+            //DEC opcodes:
+            case 0xC6 -> loadInstructionInitialState(5, Instruction.DEC, AddressingMode.ZPG);
+
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -196,6 +201,7 @@ public class CPU {
             case PHP -> PHP();
             case PLA -> PLA();
             case PLP -> PLP();
+            case DEC -> DEC();
         }
     }
 
@@ -228,9 +234,12 @@ public class CPU {
             case IND_X -> handleLDAIndirectXIndexed();
             case IND_Y -> handleLDAIndirectYIndexed();
         }
-        zero = (a.getValue() == 0);
-        // Update Negative Flag (bit 7 of A)
-        negative = (a.getValue() & 0x80) != 0;
+
+        if(remainingCycles == 1) {
+            zero = (a.getValue() == 0);
+            // Update Negative Flag (bit 7 of A)
+            negative = (a.getValue() & 0x80) != 0;
+        }
     }
 
     private void LDX() {
@@ -242,9 +251,12 @@ public class CPU {
             case ABS_Y -> handleLoad_AbsoluteIndexed(x, y);
             default -> throw new RuntimeException("Unsupported addressing mode for LDX: " + currInstruction.addressingMode);
         }
-        // Update Zero and Negative flags based on X
-        zero = (x.getValue() == 0);
-        negative = (x.getValue() & 0x80) != 0;
+
+        if(remainingCycles == 1) {
+            // Update Zero and Negative flags based on X
+            zero = (x.getValue() == 0);
+            negative = (x.getValue() & 0x80) != 0;
+        }
     }
 
     private void LDY() {
@@ -256,9 +268,12 @@ public class CPU {
             case ABS_X -> handleLoad_AbsoluteIndexed(y, x);
             default -> throw new RuntimeException("Unsupported addressing mode for LDY: " + currInstruction.addressingMode);
         }
-        // Update Zero and Negative flags based on X
-        zero = (x.getValue() == 0);
-        negative = (x.getValue() & 0x80) != 0;
+
+        if(remainingCycles == 1) {
+            // Update Zero and Negative flags based on X
+            zero = (x.getValue() == 0);
+            negative = (x.getValue() & 0x80) != 0;
+        }
     }
 
     private void STA() {
@@ -362,8 +377,10 @@ public class CPU {
             case 1 -> a.setValue(fetch(0x0100 | sp.getValue()));
         }
 
-        zero = (a.getValue() == 0);
-        negative = (a.getValue() & 0x80) != 0;
+        if(remainingCycles == 1) {
+            zero = (a.getValue() == 0);
+            negative = (a.getValue() & 0x80) != 0;
+        }
     }
 
     private void PLP() {
@@ -380,6 +397,30 @@ public class CPU {
                 zero             = (pulled & 0x02) != 0;
                 carry            = (pulled & 0x01) != 0;
             }
+        }
+    }
+
+    private void DEC() {
+        switch (currInstruction.addressingMode) {
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(value -> value - 1);
+//            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x);
+//            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode();
+//            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x);
+            default -> throw new RuntimeException("Unsupported addressing mode for DEC: " + currInstruction.addressingMode);
+        }
+
+        if(remainingCycles == 1) {
+            zero = (currInstruction.tempLatch == 0);
+            negative = (currInstruction.tempLatch & 0x80) != 0;
+        }
+    }
+
+    private void handleReadModifyWriteInstructions_ZeroPageMode(Function<Integer, Integer> operation) {
+        switch (remainingCycles) {
+            case 4 -> currInstruction.effectiveAddress = fetch();
+            case 3 -> currInstruction.tempLatch = fetch(currInstruction.effectiveAddress);
+            case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
+            case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
         }
     }
 

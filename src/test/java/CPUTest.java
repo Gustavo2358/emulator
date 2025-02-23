@@ -1022,4 +1022,32 @@ class CPUTest {
         int expectedSP = (initialSP + 1) & 0xFF;
         assertEquals(expectedSP, cpu.getState().getSp());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0, zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1, no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
+    })
+    public void DEC_ZeroPage(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 5;
+        final int DEC_OPCODE = 0xC6;
+        final int effectiveAddress = 0x10;
+        final int resetAddress = 0x8000;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, DEC_OPCODE, effectiveAddress);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.fetch(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
 }

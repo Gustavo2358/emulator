@@ -14,5 +14,6 @@ public enum Instruction {
     PHA,
     PHP,
     PLA,
-    PLP
+    PLP,
+    DEC
 }
