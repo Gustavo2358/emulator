@@ -178,6 +178,7 @@ public class CPU {
             case 0x28 -> loadInstructionInitialState(4, Instruction.PLP, AddressingMode.IMP);
             //DEC opcodes:
             case 0xC6 -> loadInstructionInitialState(5, Instruction.DEC, AddressingMode.ZPG);
+            case 0xD6 -> loadInstructionInitialState(6, Instruction.DEC, AddressingMode.ZPG_X);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -401,9 +402,10 @@ public class CPU {
     }
 
     private void DEC() {
+        Function<Integer, Integer> decrementOperation = value -> value - 1;
         switch (currInstruction.addressingMode) {
-            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(value -> value - 1);
-//            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x);
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(decrementOperation);
+            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, decrementOperation);
 //            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode();
 //            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x);
             default -> throw new RuntimeException("Unsupported addressing mode for DEC: " + currInstruction.addressingMode);
@@ -418,6 +420,16 @@ public class CPU {
     private void handleReadModifyWriteInstructions_ZeroPageMode(Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 4 -> currInstruction.effectiveAddress = fetch();
+            case 3 -> currInstruction.tempLatch = fetch(currInstruction.effectiveAddress);
+            case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
+            case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
+        }
+    }
+
+    private void handleReadModifyWriteInstructions_ZeroPageIndexed(Register8Bit register, Function<Integer, Integer> operation) {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.effectiveAddress = fetch();
+            case 4 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + register.getValue()) & 0xFF;
             case 3 -> currInstruction.tempLatch = fetch(currInstruction.effectiveAddress);
             case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
             case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
