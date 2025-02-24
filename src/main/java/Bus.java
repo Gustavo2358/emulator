@@ -1,5 +1,5 @@
 public interface Bus {
-    int fetch(int address);
+    int read(int address);
 
     void loadWRamState(WRAM wram);
 

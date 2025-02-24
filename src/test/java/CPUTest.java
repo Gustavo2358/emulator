@@ -326,7 +326,7 @@ class CPUTest {
                 .buildAndRun(instructionCycles, bus);
 
         //Verify that memory at address 0x0010 now holds 0x42
-        assertEquals(0x42, bus.fetch(0x0010));
+        assertEquals(0x42, bus.read(0x0010));
     }
 
     @Test
@@ -342,7 +342,7 @@ class CPUTest {
                 .withInstruction(0x8000, STA_ZERO_PAGE_X_OPCODE, 0x10) // STA $10,X
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x0015));
+        assertEquals(0x42, bus.read(0x0015));
     }
 
     @Test
@@ -357,7 +357,7 @@ class CPUTest {
                 .withInstruction(0x8000, STA_ABSOLUTE_OPCODE, 0x00, 0x90) // STA $9000
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x9000));
+        assertEquals(0x42, bus.read(0x9000));
     }
 
     @Test
@@ -373,7 +373,7 @@ class CPUTest {
                 .withInstruction(0x8000, STA_ABSOLUTE_X_OPCODE, 0x00, 0x90)
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x9005));
+        assertEquals(0x42, bus.read(0x9005));
     }
 
     @Test
@@ -389,7 +389,7 @@ class CPUTest {
                 .withInstruction(0x8000, STA_ABSOLUTE_Y_OPCODE, 0x00, 0x90)
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x9005));
+        assertEquals(0x42, bus.read(0x9005));
     }
 
     @Test
@@ -408,7 +408,7 @@ class CPUTest {
                 .withZeroPagePointer(0x15, 0x00, 0x90) // Pointer at 0x15 -> effective address 0x9000
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x9000));
+        assertEquals(0x42, bus.read(0x9000));
     }
 
     @Test
@@ -428,7 +428,7 @@ class CPUTest {
                 .buildAndRun(instructionCycles, bus);
 
         // Effective address: 0x9000 + 0x05 = 0x9005
-        assertEquals(0x42, bus.fetch(0x9005));
+        assertEquals(0x42, bus.read(0x9005));
     }
 
     // #### STX ####
@@ -446,7 +446,7 @@ class CPUTest {
                 .buildAndRun(instructionCycles, bus);
 
         //Verify that memory at address 0x0010 now holds 0x42
-        assertEquals(0x42, bus.fetch(0x0010));
+        assertEquals(0x42, bus.read(0x0010));
     }
 
     @Test
@@ -462,7 +462,7 @@ class CPUTest {
                 .withInstruction(0x8000, STA_ZERO_PAGE_Y_OPCODE, 0x10) // STA $10,X
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x0015));
+        assertEquals(0x42, bus.read(0x0015));
     }
 
     @Test
@@ -477,7 +477,7 @@ class CPUTest {
                 .withInstruction(0x8000, STY_ABSOLUTE_OPCODE, 0x00, 0x90) // STA $9000
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x9000));
+        assertEquals(0x42, bus.read(0x9000));
     }
 
     // #### STY ####
@@ -495,7 +495,7 @@ class CPUTest {
                 .buildAndRun(instructionCycles, bus);
 
         //Verify that memory at address 0x0010 now holds 0x42
-        assertEquals(0x42, bus.fetch(0x0010));
+        assertEquals(0x42, bus.read(0x0010));
     }
 
     @Test
@@ -511,7 +511,7 @@ class CPUTest {
                 .withInstruction(0x8000, STA_ZERO_PAGE_X_OPCODE, 0x10) // STX $10,X
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x0015));
+        assertEquals(0x42, bus.read(0x0015));
     }
 
     @Test
@@ -526,7 +526,7 @@ class CPUTest {
                 .withInstruction(0x8000, STY_ABSOLUTE_OPCODE, 0x00, 0x90) // STA $9000
                 .buildAndRun(instructionCycles, bus);
 
-        assertEquals(0x42, bus.fetch(0x9000));
+        assertEquals(0x42, bus.read(0x9000));
     }
 
     //#### TAX ####
@@ -843,7 +843,7 @@ class CPUTest {
 
         // The PHA instruction pushes A onto the stack at 0x0100 + SP before decrementing SP.
         int expectedStackAddress = 0x0100 | initialSP;
-        assertEquals(accumulatorValue, bus.fetch(expectedStackAddress));
+        assertEquals(accumulatorValue, bus.read(expectedStackAddress));
 
         // Verify that the stack pointer is decremented by 1.
         int expectedSP = (initialSP - 1) & 0xFF;
@@ -938,7 +938,7 @@ class CPUTest {
                 .buildAndRun(instructionCycles, bus);
 
         int expectedStackAddress = 0x0100 | initialSP;
-        int actualFlags = bus.fetch(expectedStackAddress);
+        int actualFlags = bus.read(expectedStackAddress);
         assertEquals(expectedFlags, actualFlags);
 
         int expectedSP = (initialSP - 1) & 0xFF;
@@ -1046,21 +1046,20 @@ class CPUTest {
 
         CPU cpu = builder.buildAndRun(instructionCycles, bus);
 
-        assertEquals(expectedValue, bus.fetch(effectiveAddress));
+        assertEquals(expectedValue, bus.read(effectiveAddress));
         assertEquals(expectedZero, cpu.getState().isZero());
         assertEquals(expectedNegative, cpu.getState().isNegative());
     }
 
     @ParameterizedTest
     @CsvSource({
-            // initialValue, expectedValue, expectedZero, expectedNegative
             "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
             "1, 0, true, false",      // 1 - 1 = 0, zero flag set
             "2, 1, false, false",     // 2 - 1 = 1, no flag set
             "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
             "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
     })
-    public void DEC_ZeroPageX_Parameterized(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+    public void DEC_ZeroPageX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 6;
         final int DEC_OPCODE = 0xD6;
         final int baseAddress = 0x10;
@@ -1079,7 +1078,69 @@ class CPUTest {
 
         CPU cpu = builder.buildAndRun(instructionCycles, bus);
 
-        assertEquals(expectedValue, bus.fetch(effectiveAddress));
+        assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0; zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1; no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+    })
+    public void DEC_Absolute(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 6;
+        final int DEC_OPCODE = 0xCE;
+        final int effectiveAddress = 0x1234;
+        final int resetAddress = 0x8000;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, DEC_OPCODE, effectiveAddress & 0xFF, (effectiveAddress >> 8) & 0xFF);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialValue, expectedValue, expectedZero, expectedNegative
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0; zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1; no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+    })
+    public void DEC_AbsoluteX_Parameterized(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 7;
+        final int DEC_OPCODE = 0xDE;
+        final int baseAddress = 0x1234;
+        final int resetAddress = 0x8000;
+        final int registerX = 0x10;
+
+        int effectiveAddress = baseAddress + registerX;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterX(registerX)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, DEC_OPCODE,
+                        baseAddress & 0xFF, (baseAddress >> 8) & 0xFF);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.read(effectiveAddress));
         assertEquals(expectedZero, cpu.getState().isZero());
         assertEquals(expectedNegative, cpu.getState().isNegative());
     }

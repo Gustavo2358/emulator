@@ -85,19 +85,19 @@ public class CPU {
     private final InstructionState currInstruction = new InstructionState();
 
     public void fetchProgramCounter() {
-        int highByte = bus.fetch(0xFFFD);
-        int lowByte = bus.fetch(0xFFFC);
+        int highByte = bus.read(0xFFFD);
+        int lowByte = bus.read(0xFFFC);
         int resetVector = (highByte << 8) | lowByte;
         System.out.printf("reset vector value: 0x%x\n", resetVector);
         this.pc = resetVector;
     }
 
     public int fetch() {
-        return fetch(pc++) & 0xFF;
+        return read(pc++) & 0xFF;
     }
 
-    public int fetch(int address) {
-        return bus.fetch(address) & 0xFF;
+    public int read(int address) {
+        return bus.read(address) & 0xFF;
     }
 
     private void write(int effectiveAddress, int value) {
@@ -179,6 +179,8 @@ public class CPU {
             //DEC opcodes:
             case 0xC6 -> loadInstructionInitialState(5, Instruction.DEC, AddressingMode.ZPG);
             case 0xD6 -> loadInstructionInitialState(6, Instruction.DEC, AddressingMode.ZPG_X);
+            case 0xCE -> loadInstructionInitialState(6, Instruction.DEC, AddressingMode.ABS);
+            case 0xDE -> loadInstructionInitialState(7, Instruction.DEC, AddressingMode.ABS_X);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -216,7 +218,7 @@ public class CPU {
 
     private void handlePageCrossingInLoadInstruction(int address, Register8Bit register) {
         if((address & 0xFF00) == (currInstruction.effectiveAddress & 0xFF00)) {
-            register.setValue(fetch(currInstruction.effectiveAddress));
+            register.setValue(read(currInstruction.effectiveAddress));
             //avoid case 1 if no extra cycle is needed. This variable is already
             //decremented outside of this function, so if we decrement it here, we
             //make sure it will not reach case 1.
@@ -375,7 +377,7 @@ public class CPU {
         switch (remainingCycles) {
             case 3 -> {} //dummy read
             case 2 -> sp.setValue((sp.getValue() + 1) & 0xFF);
-            case 1 -> a.setValue(fetch(0x0100 | sp.getValue()));
+            case 1 -> a.setValue(read(0x0100 | sp.getValue()));
         }
 
         if(remainingCycles == 1) {
@@ -389,7 +391,7 @@ public class CPU {
             case 3 -> {} //dummy read
             case 2 -> sp.setValue((sp.getValue() + 1) & 0xFF);
             case 1 -> {
-                int pulled = fetch(0x0100 | sp.getValue());
+                int pulled = read(0x0100 | sp.getValue());
                 negative         = (pulled & 0x80) != 0;
                 overflow         = (pulled & 0x40) != 0;
                 // Bits 0x20 and 0x10 are constant in flagsToBits.
@@ -406,8 +408,8 @@ public class CPU {
         switch (currInstruction.addressingMode) {
             case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(decrementOperation);
             case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, decrementOperation);
-//            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode();
-//            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x);
+            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode(decrementOperation);
+            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x, decrementOperation);
             default -> throw new RuntimeException("Unsupported addressing mode for DEC: " + currInstruction.addressingMode);
         }
 
@@ -417,10 +419,32 @@ public class CPU {
         }
     }
 
+    private void handleReadModifyWriteInstructions_AbsoluteMode(Function<Integer, Integer> operation) {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.effectiveAddress = fetch();
+            case 4 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
+            case 3 -> currInstruction.tempLatch = read(currInstruction.effectiveAddress);
+            case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
+            case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
+
+        }
+    }
+    private void handleReadModifyWriteInstructions_AbsoluteIndexed(Register8Bit register, Function<Integer, Integer> operation) {
+        switch (remainingCycles) {
+            case 6 -> currInstruction.effectiveAddress = fetch();
+            case 5 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
+            case 4 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + register.getValue()) & 0xFFFF;
+            case 3 -> currInstruction.tempLatch = read(currInstruction.effectiveAddress);
+            case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
+            case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
+
+        }
+    }
+
     private void handleReadModifyWriteInstructions_ZeroPageMode(Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 4 -> currInstruction.effectiveAddress = fetch();
-            case 3 -> currInstruction.tempLatch = fetch(currInstruction.effectiveAddress);
+            case 3 -> currInstruction.tempLatch = read(currInstruction.effectiveAddress);
             case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
             case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
         }
@@ -430,7 +454,7 @@ public class CPU {
         switch (remainingCycles) {
             case 5 -> currInstruction.effectiveAddress = fetch();
             case 4 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + register.getValue()) & 0xFF;
-            case 3 -> currInstruction.tempLatch = fetch(currInstruction.effectiveAddress);
+            case 3 -> currInstruction.tempLatch = read(currInstruction.effectiveAddress);
             case 2 -> currInstruction.tempLatch = operation.apply(currInstruction.tempLatch) & 0xFF;
             case 1 -> write(currInstruction.effectiveAddress, currInstruction.tempLatch);
         }
@@ -440,7 +464,7 @@ public class CPU {
     private void handleLoad_ZeroPageMode(Register8Bit register) {
         switch (remainingCycles) {
             case 2 -> currInstruction.effectiveAddress = fetch();
-            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
+            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
@@ -448,7 +472,7 @@ public class CPU {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
-            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
+            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
@@ -456,7 +480,7 @@ public class CPU {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + indexRegister.getValue()) & 0xFF;
-            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
+            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
@@ -469,7 +493,7 @@ public class CPU {
                 currInstruction.effectiveAddress = (address + indexRegister.getValue()) & 0xFFFF;
                 handlePageCrossingInLoadInstruction(address, register);
             }
-            case 1 -> register.setValue(fetch(currInstruction.effectiveAddress));
+            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
@@ -477,21 +501,21 @@ public class CPU {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
-            case 3 -> currInstruction.effectiveAddress = fetch(currInstruction.operand);
+            case 3 -> currInstruction.effectiveAddress = read(currInstruction.operand);
             case 2 -> {
-                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                int highByte = read((currInstruction.operand + 1) & 0xFF);
                 currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
-            case 1 -> a.setValue(fetch(currInstruction.effectiveAddress));
+            case 1 -> a.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
     private void handleLDAIndirectYIndexed() {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
-            case 4 -> currInstruction.effectiveAddress = fetch(currInstruction.operand & 0xFF) ;
+            case 4 -> currInstruction.effectiveAddress = read(currInstruction.operand & 0xFF) ;
             case 3 -> {
-                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                int highByte = read((currInstruction.operand + 1) & 0xFF);
                 currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
             case 2 -> {
@@ -499,7 +523,7 @@ public class CPU {
                 currInstruction.effectiveAddress = (address + y.getValue()) & 0xFFFF;
                 handlePageCrossingInLoadInstruction(address, a);
             }
-            case 1 -> a.setValue(fetch(currInstruction.effectiveAddress));
+            case 1 -> a.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
@@ -540,9 +564,9 @@ public class CPU {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
-            case 3 -> currInstruction.effectiveAddress = fetch(currInstruction.operand);
+            case 3 -> currInstruction.effectiveAddress = read(currInstruction.operand);
             case 2 -> {
-                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                int highByte = read((currInstruction.operand + 1) & 0xFF);
                 currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
             case 1 -> bus.write(currInstruction.effectiveAddress, a.getValue());
@@ -552,9 +576,9 @@ public class CPU {
     private void handleSTAIndirectY() {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
-            case 4 -> currInstruction.effectiveAddress = fetch(currInstruction.operand & 0xFF);
+            case 4 -> currInstruction.effectiveAddress = read(currInstruction.operand & 0xFF);
             case 3 -> {
-                int highByte = fetch((currInstruction.operand + 1) & 0xFF);
+                int highByte = read((currInstruction.operand + 1) & 0xFF);
                 currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
             case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + y.getValue()) & 0xFFFF;

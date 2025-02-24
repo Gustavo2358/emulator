@@ -11,7 +11,7 @@ public class MockBus implements Bus {
     }
 
     @Override
-    public int fetch(int address) {
+    public int read(int address) {
         return wram.memory[address];
     }
 
