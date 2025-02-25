@@ -234,9 +234,11 @@ public class CPU {
         this.currInstruction.addressingMode = addressingMode;
     }
 
-    private void handlePageCrossingInLoadInstruction(int address, Register8Bit register) {
+    private void handlePageCrossingInLoadInstruction(int address, Register8Bit register, Function<Integer, Integer> operation) {
         if((address & 0xFF00) == (currInstruction.effectiveAddress & 0xFF00)) {
-            register.setValue(read(currInstruction.effectiveAddress));
+
+            int read = read(currInstruction.effectiveAddress);
+            register.setValue(operation.apply(read));
             //avoid case 1 if no extra cycle is needed. This variable is already
             //decremented outside of this function, so if we decrement it here, we
             //make sure it will not reach case 1.
@@ -247,13 +249,13 @@ public class CPU {
     private void LDA() {
         switch (currInstruction.addressingMode) {
             case IMM -> a.setValue(fetch());
-            case ZPG -> handleLoad_ZeroPageMode(a);
-            case ZPG_X -> handleLoad_ZeroPageIndexed(a, x);
-            case ABS -> handleLoad_AbsoluteMode(a);
-            case ABS_X -> handleLoad_AbsoluteIndexed(a, x);
-            case ABS_Y -> handleLoad_AbsoluteIndexed(a, y);
-            case IND_X -> handleLDAIndirectXIndexed();
-            case IND_Y -> handleLDAIndirectYIndexed();
+            case ZPG -> handleRead_ZeroPageMode(a, Function.identity());
+            case ZPG_X -> handleRead_ZeroPageIndexed(a, x, Function.identity());
+            case ABS -> handleRead_AbsoluteMode(a, Function.identity());
+            case ABS_X -> handleRead_AbsoluteIndexed(a, x, Function.identity());
+            case ABS_Y -> handleRead_AbsoluteIndexed(a, y, Function.identity());
+            case IND_X -> handleRead_IndirectXIndexed(a, Function.identity());
+            case IND_Y -> handleRead_IndirectYIndexed(a, Function.identity());
         }
 
         if(remainingCycles == 1) {
@@ -266,10 +268,10 @@ public class CPU {
     private void LDX() {
         switch (currInstruction.addressingMode) {
             case IMM -> x.setValue(fetch());
-            case ZPG -> handleLoad_ZeroPageMode(x);
-            case ZPG_Y -> handleLoad_ZeroPageIndexed(x, y);
-            case ABS -> handleLoad_AbsoluteMode(x);
-            case ABS_Y -> handleLoad_AbsoluteIndexed(x, y);
+            case ZPG -> handleRead_ZeroPageMode(x, Function.identity());
+            case ZPG_Y -> handleRead_ZeroPageIndexed(x, y, Function.identity());
+            case ABS -> handleRead_AbsoluteMode(x, Function.identity());
+            case ABS_Y -> handleRead_AbsoluteIndexed(x, y, Function.identity());
             default -> throw new RuntimeException("Unsupported addressing mode for LDX: " + currInstruction.addressingMode);
         }
 
@@ -283,10 +285,10 @@ public class CPU {
     private void LDY() {
         switch (currInstruction.addressingMode) {
             case IMM -> y.setValue(fetch());
-            case ZPG -> handleLoad_ZeroPageMode(y);
-            case ZPG_X -> handleLoad_ZeroPageIndexed(y, x);
-            case ABS -> handleLoad_AbsoluteMode(y);
-            case ABS_X -> handleLoad_AbsoluteIndexed(y, x);
+            case ZPG -> handleRead_ZeroPageMode(y, Function.identity());
+            case ZPG_X -> handleRead_ZeroPageIndexed(y, x, Function.identity());
+            case ABS -> handleRead_AbsoluteMode(y, Function.identity());
+            case ABS_X -> handleRead_AbsoluteIndexed(y, x, Function.identity());
             default -> throw new RuntimeException("Unsupported addressing mode for LDY: " + currInstruction.addressingMode);
         }
 
@@ -523,43 +525,55 @@ public class CPU {
     }
 
     // LOAD INSTRUCTIONS
-    private void handleLoad_ZeroPageMode(Register8Bit register) {
+    private void handleRead_ZeroPageMode(Register8Bit register, Function<Integer,Integer> operation) {
         switch (remainingCycles) {
             case 2 -> currInstruction.effectiveAddress = fetch();
-            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> {
+                int read = read(currInstruction.effectiveAddress);
+                register.setValue(operation.apply(read));
+            }
         }
     }
 
-    private void handleLoad_AbsoluteMode(Register8Bit register) {
+    private void handleRead_AbsoluteMode(Register8Bit register, Function<Integer,Integer> operation) {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
-            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> {
+                int read = read(currInstruction.effectiveAddress);
+                register.setValue(operation.apply(read));
+            }
         }
     }
 
-    private void handleLoad_ZeroPageIndexed(Register8Bit register, Register8Bit indexRegister) {
+    private void handleRead_ZeroPageIndexed(Register8Bit register, Register8Bit indexRegister, Function<Integer,Integer> operation) {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + indexRegister.getValue()) & 0xFF;
-            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> {
+                int read = read(currInstruction.effectiveAddress);
+                register.setValue(operation.apply(read));
+            }
         }
     }
 
-    private void handleLoad_AbsoluteIndexed(Register8Bit register, Register8Bit indexRegister) {
+    private void handleRead_AbsoluteIndexed(Register8Bit register, Register8Bit indexRegister, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 4 -> currInstruction.effectiveAddress = fetch();
             case 3 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
             case 2 -> {
                 var address = currInstruction.effectiveAddress;
                 currInstruction.effectiveAddress = (address + indexRegister.getValue()) & 0xFFFF;
-                handlePageCrossingInLoadInstruction(address, register);
+                handlePageCrossingInLoadInstruction(address, register, operation);
             }
-            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> {
+                int read = read(currInstruction.effectiveAddress);
+                register.setValue(operation.apply(read));
+            }
         }
     }
 
-    private void handleLDAIndirectXIndexed() {
+    private void handleRead_IndirectXIndexed(Register8Bit register, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
@@ -568,11 +582,14 @@ public class CPU {
                 int highByte = read((currInstruction.operand + 1) & 0xFF);
                 currInstruction.effectiveAddress = ((highByte << 8) | currInstruction.effectiveAddress) & 0xFFFF;
             }
-            case 1 -> a.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> {
+                int read = read(currInstruction.effectiveAddress);
+                register.setValue(operation.apply(read));
+            }
         }
     }
 
-    private void handleLDAIndirectYIndexed() {
+    private void handleRead_IndirectYIndexed(Register8Bit register, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.effectiveAddress = read(currInstruction.operand & 0xFF) ;
@@ -583,9 +600,9 @@ public class CPU {
             case 2 -> {
                 var address = currInstruction.effectiveAddress;
                 currInstruction.effectiveAddress = (address + y.getValue()) & 0xFFFF;
-                handlePageCrossingInLoadInstruction(address, a);
+                handlePageCrossingInLoadInstruction(address, register, operation);
             }
-            case 1 -> a.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
         }
     }
 
