@@ -357,18 +357,6 @@ public class CPU {
         }
     }
 
-    private void DEX() {
-        x.setValue((x.getValue() - 1) & 0xFF);
-        zero = (x.getValue() == 0);
-        negative = (x.getValue() & 0x80) != 0;
-    }
-
-    private void DEY() {
-        y.setValue((y.getValue() - 1) & 0xFF);
-        zero = (y.getValue() == 0);
-        negative = (y.getValue() & 0x80) != 0;
-    }
-
     // Converts the current CPU flags into an 8-bit representation.
     // Bit layout: N V 1 B D I Z C
     private int flagsToBits() {
@@ -436,6 +424,21 @@ public class CPU {
             negative = (currInstruction.tempLatch & 0x80) != 0;
         }
     }
+
+    private void DEX() {
+        assert(remainingCycles == 1);
+        x.setValue((x.getValue() - 1) & 0xFF);
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
+    }
+
+    private void DEY() {
+        assert(remainingCycles == 1);
+        y.setValue((y.getValue() - 1) & 0xFF);
+        zero = (y.getValue() == 0);
+        negative = (y.getValue() & 0x80) != 0;
+    }
+
 
     private void handleReadModifyWriteInstructions_AbsoluteMode(Function<Integer, Integer> operation) {
         switch (remainingCycles) {
