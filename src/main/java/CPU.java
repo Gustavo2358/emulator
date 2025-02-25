@@ -185,6 +185,15 @@ public class CPU {
             case 0xCA -> loadInstructionInitialState(2, Instruction.DEX, AddressingMode.IMP);
             //DEY opcode:
             case 0x88 -> loadInstructionInitialState(2, Instruction.DEY, AddressingMode.IMP);
+            //INC opcode:
+            case 0xE6 -> loadInstructionInitialState(5, Instruction.INC, AddressingMode.ZPG);
+            case 0xF6 -> loadInstructionInitialState(6, Instruction.INC, AddressingMode.ZPG_X);
+            case 0xEE -> loadInstructionInitialState(6, Instruction.INC, AddressingMode.ABS);
+            case 0xFE -> loadInstructionInitialState(7, Instruction.INC, AddressingMode.ABS_X);
+            //INX opcode:
+            case 0xE8 -> loadInstructionInitialState(2, Instruction.INX, AddressingMode.IMP);
+            //INY opcode:
+            case 0xC8 -> loadInstructionInitialState(2, Instruction.INY, AddressingMode.IMP);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -211,6 +220,9 @@ public class CPU {
             case DEC -> DEC();
             case DEX -> DEX();
             case DEY -> DEY();
+            case INC -> INC();
+            case INX -> INX();
+            case INY -> INY();
         }
     }
 
@@ -439,6 +451,35 @@ public class CPU {
         negative = (y.getValue() & 0x80) != 0;
     }
 
+    private void INC() {
+        Function<Integer, Integer> decrementOperation = value -> value + 1;
+        switch (currInstruction.addressingMode) {
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(decrementOperation);
+            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, decrementOperation);
+            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode(decrementOperation);
+            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x, decrementOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for INC: " + currInstruction.addressingMode);
+        }
+
+        if(remainingCycles == 1) {
+            zero = (currInstruction.tempLatch == 0);
+            negative = (currInstruction.tempLatch & 0x80) != 0;
+        }
+    }
+
+    private void INX() {
+        assert(remainingCycles == 1);
+        x.setValue((x.getValue() + 1) & 0xFF);
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
+    }
+
+    private void INY() {
+        assert(remainingCycles == 1);
+        y.setValue((y.getValue() + 1) & 0xFF);
+        zero = (y.getValue() == 0);
+        negative = (y.getValue() & 0x80) != 0;
+    }
 
     private void handleReadModifyWriteInstructions_AbsoluteMode(Function<Integer, Integer> operation) {
         switch (remainingCycles) {

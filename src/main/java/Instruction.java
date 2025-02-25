@@ -17,5 +17,8 @@ public enum Instruction {
     PLP,
     DEC,
     DEX,
-    DEY
+    DEY,
+    INC,
+    INX,
+    INY
 }

@@ -1193,4 +1193,175 @@ class CPUTest {
         assertEquals(expectedZero, cpu.getState().isZero());
         assertEquals(expectedNegative, cpu.getState().isNegative());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, false, false",      // 0 + 1 = 1, no flags set.
+            "255, 0, true, false",      // 255 + 1 wraps to 0, zero flag set.
+            "2, 3, false, false",       // 2 + 1 = 3.
+            "127, 128, false, true",     // 127 + 1 = 128, negative flag set.
+            "254, 255, false, true"      // 254 + 1 = 255, negative flag set.
+    })
+    public void INC_ZeroPage(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 5;
+        final int INC_OPCODE = 0xE6;
+        final int effectiveAddress = 0x10;
+        final int resetAddress = 0x8000;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, INC_OPCODE, effectiveAddress);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, false, false",      // 0 + 1 = 1, no flags set.
+            "255, 0, true, false",      // 255 + 1 wraps to 0, zero flag set.
+            "2, 3, false, false",       // 2 + 1 = 3.
+            "127, 128, false, true",     // 127 + 1 = 128, negative flag set.
+            "254, 255, false, true"      // 254 + 1 = 255, negative flag set.
+    })
+    public void INC_ZeroPageX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 6;
+        final int INC_OPCODE = 0xF6;
+        final int baseAddress = 0x10;
+        final int resetAddress = 0x8000;
+        final int registerX = 0x05;
+
+        int effectiveAddress = (baseAddress + registerX) & 0xFF;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterX(registerX)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, INC_OPCODE, baseAddress);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, false, false",      // 0 + 1 = 1, no flags set.
+            "255, 0, true, false",      // 255 + 1 wraps to 0, zero flag set.
+            "2, 3, false, false",       // 2 + 1 = 3.
+            "127, 128, false, true",     // 127 + 1 = 128, negative flag set.
+            "254, 255, false, true"      // 254 + 1 = 255, negative flag set.
+    })
+    public void INC_Absolute(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 6;
+        final int INC_OPCODE = 0xEE;
+        final int effectiveAddress = 0x1234;
+        final int resetAddress = 0x8000;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, INC_OPCODE, effectiveAddress & 0xFF, (effectiveAddress >> 8) & 0xFF);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, false, false",      // 0 + 1 = 1, no flags set.
+            "255, 0, true, false",      // 255 + 1 wraps to 0, zero flag set.
+            "2, 3, false, false",       // 2 + 1 = 3.
+            "127, 128, false, true",     // 127 + 1 = 128, negative flag set.
+            "254, 255, false, true"      // 254 + 1 = 255, negative flag set.
+    })
+    public void INC_AbsoluteX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 7;
+        final int INC_OPCODE = 0xFE;
+        final int baseAddress = 0x1234;
+        final int resetAddress = 0x8000;
+        final int registerX = 0x10;
+
+        int effectiveAddress = baseAddress + registerX;
+
+        Bus bus = new MockBus();
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterX(registerX)
+                .withMemoryValue(effectiveAddress, initialValue)
+                .withInstruction(resetAddress, INC_OPCODE,
+                        baseAddress & 0xFF, (baseAddress >> 8) & 0xFF);
+
+        CPU cpu = builder.buildAndRun(instructionCycles, bus);
+
+        assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, false, false",     // 0 + 1 = 1, zero false, negative false.
+            "255, 0, true, false",     // 255 + 1 wraps to 0, zero true.
+            "2, 3, false, false",      // 2 + 1 = 3.
+            "127, 128, false, true",    // 127 + 1 = 128 (0x80), negative flag set.
+            "254, 255, false, true"     // 254 + 1 = 255, negative flag set.
+    })
+    public void INX(int initialX, int expectedX, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 2;
+        final int INX_OPCODE = 0xE8;
+        final int resetAddress = 0x8000;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterX(initialX)
+                .withInstruction(resetAddress, INX_OPCODE);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+
+        assertEquals(expectedX, cpu.getState().getX());
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, false, false",     // 0 + 1 = 1, zero false, negative false.
+            "255, 0, true, false",     // 255 + 1 wraps to 0, zero true.
+            "2, 3, false, false",      // 2 + 1 = 3.
+            "127, 128, false, true",    // 127 + 1 = 128 (0x80), negative flag set.
+            "254, 255, false, true"     // 254 + 1 = 255, negative flag set.
+    })
+    public void INY_Parameterized(int initialY, int expectedY, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 2;
+        final int INY_OPCODE = 0xC8;
+        final int resetAddress = 0x8000;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterY(initialY)
+                .withInstruction(resetAddress, INY_OPCODE);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+
+        assertEquals(expectedY, cpu.getState().getY());
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
 }
