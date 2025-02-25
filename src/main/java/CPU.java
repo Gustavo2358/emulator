@@ -181,6 +181,10 @@ public class CPU {
             case 0xD6 -> loadInstructionInitialState(6, Instruction.DEC, AddressingMode.ZPG_X);
             case 0xCE -> loadInstructionInitialState(6, Instruction.DEC, AddressingMode.ABS);
             case 0xDE -> loadInstructionInitialState(7, Instruction.DEC, AddressingMode.ABS_X);
+            //DEX opcode:
+            case 0xCA -> loadInstructionInitialState(2, Instruction.DEX, AddressingMode.IMP);
+            //DEY opcode:
+            case 0x88 -> loadInstructionInitialState(2, Instruction.DEY, AddressingMode.IMP);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -205,6 +209,8 @@ public class CPU {
             case PLA -> PLA();
             case PLP -> PLP();
             case DEC -> DEC();
+            case DEX -> DEX();
+            case DEY -> DEY();
         }
     }
 
@@ -349,6 +355,18 @@ public class CPU {
             case 2 -> write(0x0100 | sp.getValue(), a.getValue());
             case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
         }
+    }
+
+    private void DEX() {
+        x.setValue((x.getValue() - 1) & 0xFF);
+        zero = (x.getValue() == 0);
+        negative = (x.getValue() & 0x80) != 0;
+    }
+
+    private void DEY() {
+        y.setValue((y.getValue() - 1) & 0xFF);
+        zero = (y.getValue() == 0);
+        negative = (y.getValue() & 0x80) != 0;
     }
 
     // Converts the current CPU flags into an 8-bit representation.

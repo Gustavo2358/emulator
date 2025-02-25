@@ -1025,11 +1025,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
-            "1, 0, true, false",      // 1 - 1 = 0, zero flag set
-            "2, 1, false, false",     // 2 - 1 = 1, no flag set
-            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
-            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
+        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
+        "1, 0, true, false",      // 1 - 1 = 0, zero flag set
+        "2, 1, false, false",     // 2 - 1 = 1, no flag set
+        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
+        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
     })
     public void DEC_ZeroPage(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 5;
@@ -1053,11 +1053,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
-            "1, 0, true, false",      // 1 - 1 = 0, zero flag set
-            "2, 1, false, false",     // 2 - 1 = 1, no flag set
-            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
-            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
+        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
+        "1, 0, true, false",      // 1 - 1 = 0, zero flag set
+        "2, 1, false, false",     // 2 - 1 = 1, no flag set
+        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
+        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
     })
     public void DEC_ZeroPageX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 6;
@@ -1085,11 +1085,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
-            "1, 0, true, false",      // 1 - 1 = 0; zero flag set
-            "2, 1, false, false",     // 2 - 1 = 1; no flag set
-            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
-            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+        "1, 0, true, false",      // 1 - 1 = 0; zero flag set
+        "2, 1, false, false",     // 2 - 1 = 1; no flag set
+        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
+        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
     })
     public void DEC_Absolute(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 6;
@@ -1113,14 +1113,13 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-            // initialValue, expectedValue, expectedZero, expectedNegative
-            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
-            "1, 0, true, false",      // 1 - 1 = 0; zero flag set
-            "2, 1, false, false",     // 2 - 1 = 1; no flag set
-            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
-            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+        "1, 0, true, false",      // 1 - 1 = 0; zero flag set
+        "2, 1, false, false",     // 2 - 1 = 1; no flag set
+        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
+        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
     })
-    public void DEC_AbsoluteX_Parameterized(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
+    public void DEC_AbsoluteX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 7;
         final int DEC_OPCODE = 0xDE;
         final int baseAddress = 0x1234;
@@ -1141,6 +1140,56 @@ class CPUTest {
         CPU cpu = builder.buildAndRun(instructionCycles, bus);
 
         assertEquals(expectedValue, bus.read(effectiveAddress));
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 255, false, true",   // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+        "1, 0, true, false",     // 1 - 1 = 0; zero flag set
+        "2, 1, false, false",    // 2 - 1 = 1; no flag set
+        "128, 127, false, false",// 128 (0x80) - 1 = 127 (0x7F); negative flag clear
+        "255, 254, false, true"  // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+    })
+    public void DEX(int initialX, int expectedX, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 2;
+        final int DEX_OPCODE = 0xCA;
+        final int resetAddress = 0x8000;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterX(initialX)
+                .withInstruction(resetAddress, DEX_OPCODE);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+
+        assertEquals(expectedX, cpu.getState().getX());
+        assertEquals(expectedZero, cpu.getState().isZero());
+        assertEquals(expectedNegative, cpu.getState().isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 255, false, true",   // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+        "1, 0, true, false",     // 1 - 1 = 0; zero flag set
+        "2, 1, false, false",    // 2 - 1 = 1; no flag set
+        "128, 127, false, false",// 128 (0x80) - 1 = 127 (0x7F); negative flag clear
+        "255, 254, false, true"  // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+    })
+    public void DEY(int initialY, int expectedY, boolean expectedZero, boolean expectedNegative) {
+        final int instructionCycles = 2;
+        final int DEY_OPCODE = 0x88;
+        final int resetAddress = 0x8000;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withRegisterY(initialY)
+                .withInstruction(resetAddress, DEY_OPCODE);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+
+        assertEquals(expectedY, cpu.getState().getY());
         assertEquals(expectedZero, cpu.getState().isZero());
         assertEquals(expectedNegative, cpu.getState().isNegative());
     }

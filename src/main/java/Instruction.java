@@ -15,5 +15,7 @@ public enum Instruction {
     PHP,
     PLA,
     PLP,
-    DEC
+    DEC,
+    DEX,
+    DEY
 }
