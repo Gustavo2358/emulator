@@ -24,5 +24,6 @@ public enum Instruction {
     ORA,
     EOR,
     AND,
-    ASL
+    ASL,
+    LSR
 }

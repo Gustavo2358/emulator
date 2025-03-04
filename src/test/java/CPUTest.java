@@ -2267,4 +2267,129 @@ class CPUTest {
         assertEquals(expectedCarry, state.isCarry());
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, true, false, false",
+            "1, 0, true, false, true",   // 1 (00000001) >> 1 = 0, carry=1
+            "2, 1, false, false, false", // 2 (00000010) >> 1 = 1, carry=0
+            "85, 42, false, false, true", // 85 (01010101) >> 1 = 42, carry=1
+            "170, 85, false, false, false"// 170 (10101010) >> 1 = 85, carry=0
+    })
+    public void LSR_Accumulator(int initialA, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x4A;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, true, false, false",
+            "1, 0, true, false, true",
+            "2, 1, false, false, false",
+            "85, 42, false, false, true",
+            "170, 85, false, false, false"
+    })
+    public void LSR_ZeroPage(int initial, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x46;
+        int address = 0x10;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, opcode, address)
+                .withMemoryValue(address, initial)
+                .buildAndRun(5, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(address));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, true, false, false",
+            "1, 5, 0, true, false, true",
+            "2, 5, 1, false, false, false",
+            "85, 5, 42, false, false, true",
+            "170, 5, 85, false, false, false"
+    })
+    public void LSR_ZeroPageX(int initial, int regX, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x56;
+        int baseAddress = 0x10;
+        int effectiveAddress = (baseAddress + regX) & 0xFF;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress)
+                .withMemoryValue(effectiveAddress, initial)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(effectiveAddress));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, true, false, false",
+            "1, 0, true, false, true",
+            "2, 1, false, false, false",
+            "85, 42, false, false, true",
+            "170, 85, false, false, false"
+    })
+    public void LSR_Absolute(int initial, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x4E;
+        int address = 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, opcode, address & 0xFF, (address >> 8) & 0xFF)
+                .withMemoryValue(address, initial)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(address));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, true, false, false",
+            "1, 5, 0, true, false, true",
+            "2, 5, 1, false, false, false",
+            "85, 5, 42, false, false, true",
+            "170, 5, 85, false, false, false",
+            "0, 1, 0, true, false, false",
+            "1, 1, 0, true, false, true",
+            "2, 1, 1, false, false, false",
+            "85, 1, 42, false, false, true",
+            "170, 1, 85, false, false, false"
+    })
+    public void LSR_AbsoluteX(int initial, int regX, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x5E;
+        int baseAddress = 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, initial)
+                .buildAndRun(7, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(baseAddress + regX));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
 }

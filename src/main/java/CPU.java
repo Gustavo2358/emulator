@@ -227,6 +227,13 @@ public class CPU {
             case 0x16 -> loadInstructionInitialState(6, Instruction.ASL, AddressingMode.ZPG_X);
             case 0x0E -> loadInstructionInitialState(6, Instruction.ASL, AddressingMode.ABS);
             case 0x1E -> loadInstructionInitialState(7, Instruction.ASL, AddressingMode.ABS_X);
+            // LSR opcodes:
+            case 0x4A -> loadInstructionInitialState(2, Instruction.LSR, AddressingMode.ACC);
+            case 0x46 -> loadInstructionInitialState(5, Instruction.LSR, AddressingMode.ZPG);
+            case 0x56 -> loadInstructionInitialState(6, Instruction.LSR, AddressingMode.ZPG_X);
+            case 0x4E -> loadInstructionInitialState(6, Instruction.LSR, AddressingMode.ABS);
+            case 0x5E -> loadInstructionInitialState(7, Instruction.LSR, AddressingMode.ABS_X);
+
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -259,6 +266,7 @@ public class CPU {
             case EOR -> EOR();
             case AND -> AND();
             case ASL -> ASL();
+            case LSR -> LSR();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -595,6 +603,29 @@ public class CPU {
             zero = (result == 0);
             negative = (result & 0x80) != 0;
             //carry flag is being updated in the shiftOperation Function.
+        }
+    }
+
+    private void LSR() {
+        Function<Integer, Integer> shiftOperation = value -> {
+            carry = (value & 0x01) != 0;
+            return (value >>> 1) & 0xFF;
+        };
+        switch (currInstruction.addressingMode) {
+            case ACC -> {
+                currInstruction.tempLatch = shiftOperation.apply(a.getValue());
+                a.setValue(currInstruction.tempLatch);
+            }
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(shiftOperation);
+            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, shiftOperation);
+            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode(shiftOperation);
+            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x, shiftOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for LSR: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            int result = currInstruction.tempLatch;
+            zero = (result == 0);
+            negative = false;
         }
     }
 
