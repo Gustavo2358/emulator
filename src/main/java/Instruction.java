@@ -23,5 +23,6 @@ public enum Instruction {
     INY,
     ORA,
     EOR,
-    AND
+    AND,
+    ASL
 }

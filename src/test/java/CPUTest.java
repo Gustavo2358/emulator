@@ -2139,4 +2139,132 @@ class CPUTest {
         assertEquals(expectedZero, state.isZero());
         assertEquals(expectedNegative, state.isNegative());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, true, false, false",
+            "1, 2, false, false, false",
+            "128, 0, true, false, true",  // 0x80 << 1 produces 0 with carry set
+            "64, 128, false, true, false",
+            "85, 170, false, true, false"
+    })
+    public void ASL_Accumulator(int initialA, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x0A;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, true, false, false",
+            "1, 2, false, false, false",
+            "128, 0, true, false, true",
+            "64, 128, false, true, false",
+            "85, 170, false, true, false"
+    })
+    public void ASL_ZeroPage(int initial, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x06;
+        int address = 0x10;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, opcode, address)
+                .withMemoryValue(address, initial)
+                .buildAndRun(5, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(address));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initial, regX, expected, expectedZero, expectedNegative, expectedCarry
+            "0, 5, 0, true, false, false",
+            "1, 5, 2, false, false, false",
+            "128, 5, 0, true, false, true",
+            "64, 5, 128, false, true, false",
+            "85, 5, 170, false, true, false"
+    })
+    public void ASL_ZeroPageX(int initial, int regX, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x16;
+        int baseAddress = 0x10;
+        int effectiveAddress = (baseAddress + regX) & 0xFF;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress)
+                .withMemoryValue(effectiveAddress, initial)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(effectiveAddress));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, true, false, false",
+            "1, 2, false, false, false",
+            "128, 0, true, false, true",
+            "64, 128, false, true, false",
+            "85, 170, false, true, false"
+    })
+    public void ASL_Absolute(int initial, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x0E;
+        int address = 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withInstruction(0x8000, opcode, address & 0xFF, (address >> 8) & 0xFF)
+                .withMemoryValue(address, initial)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(address));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, true, false, false",
+            "1, 5, 2, false, false, false",
+            "128, 5, 0, true, false, true",
+            "64, 5, 128, false, true, false",
+            "85, 5, 170, false, true, false",
+            "0, 1, 0, true, false, false",
+            "1, 1, 2, false, false, false",
+            "128, 1, 0, true, false, true",
+            "64, 1, 128, false, true, false",
+            "85, 1, 170, false, true, false"
+    })
+    public void ASL_AbsoluteX(int initial, int regX, int expected, boolean expectedZero, boolean expectedNegative, boolean expectedCarry) {
+        final int opcode = 0x1E;
+        int baseAddress = (regX == 1) ? 0x90FF : 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, initial)
+                .buildAndRun(7, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expected, bus.read(baseAddress + regX));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedCarry, state.isCarry());
+    }
+
 }

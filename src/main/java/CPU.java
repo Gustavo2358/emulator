@@ -221,7 +221,12 @@ public class CPU {
             case 0x39 -> loadInstructionInitialState(5, Instruction.AND, AddressingMode.ABS_Y);
             case 0x21 -> loadInstructionInitialState(6, Instruction.AND, AddressingMode.IND_X);
             case 0x31 -> loadInstructionInitialState(6, Instruction.AND, AddressingMode.IND_Y);
-
+            // ASL opcodes:
+            case 0x0A -> loadInstructionInitialState(2, Instruction.ASL, AddressingMode.ACC);
+            case 0x06 -> loadInstructionInitialState(5, Instruction.ASL, AddressingMode.ZPG);
+            case 0x16 -> loadInstructionInitialState(6, Instruction.ASL, AddressingMode.ZPG_X);
+            case 0x0E -> loadInstructionInitialState(6, Instruction.ASL, AddressingMode.ABS);
+            case 0x1E -> loadInstructionInitialState(7, Instruction.ASL, AddressingMode.ABS_X);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -253,6 +258,7 @@ public class CPU {
             case ORA -> ORA();
             case EOR -> EOR();
             case AND -> AND();
+            case ASL -> ASL();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -565,6 +571,30 @@ public class CPU {
         if (remainingCycles == 1) {
             zero = (a.getValue() == 0);
             negative = (a.getValue() & 0x80) != 0;
+        }
+    }
+
+    private void ASL() {
+        Function<Integer, Integer> shiftOperation = value -> {
+            carry = (value & 0x80) != 0;
+            return (value << 1) & 0xFF;
+        };
+        switch (currInstruction.addressingMode) {
+            case ACC -> {
+                currInstruction.tempLatch = shiftOperation.apply(a.getValue());
+                a.setValue(currInstruction.tempLatch);
+            }
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(shiftOperation);
+            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, shiftOperation);
+            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode(shiftOperation);
+            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x, shiftOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for ASL: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            int result = currInstruction.tempLatch;
+            zero = (result == 0);
+            negative = (result & 0x80) != 0;
+            //carry flag is being updated in the shiftOperation Function.
         }
     }
 
