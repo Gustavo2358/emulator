@@ -88,7 +88,7 @@ public class CPU {
         int highByte = bus.read(0xFFFD);
         int lowByte = bus.read(0xFFFC);
         int resetVector = (highByte << 8) | lowByte;
-        System.out.printf("reset vector value: 0x%x\n", resetVector);
+//        System.out.printf("reset vector value: 0x%x\n", resetVector);
         this.pc = resetVector;
     }
 
@@ -203,6 +203,24 @@ public class CPU {
             case 0x19 -> loadInstructionInitialState(5, Instruction.ORA, AddressingMode.ABS_Y);
             case 0x01 -> loadInstructionInitialState(6, Instruction.ORA, AddressingMode.IND_X);
             case 0x11 -> loadInstructionInitialState(6, Instruction.ORA, AddressingMode.IND_Y);
+            // EOR opcodes:
+            case 0x49 -> loadInstructionInitialState(2, Instruction.EOR, AddressingMode.IMM);
+            case 0x45 -> loadInstructionInitialState(3, Instruction.EOR, AddressingMode.ZPG);
+            case 0x55 -> loadInstructionInitialState(4, Instruction.EOR, AddressingMode.ZPG_X);
+            case 0x4D -> loadInstructionInitialState(4, Instruction.EOR, AddressingMode.ABS);
+            case 0x5D -> loadInstructionInitialState(5, Instruction.EOR, AddressingMode.ABS_X);
+            case 0x59 -> loadInstructionInitialState(5, Instruction.EOR, AddressingMode.ABS_Y);
+            case 0x41 -> loadInstructionInitialState(6, Instruction.EOR, AddressingMode.IND_X);
+            case 0x51 -> loadInstructionInitialState(6, Instruction.EOR, AddressingMode.IND_Y);
+            // AND opcodes:
+            case 0x29 -> loadInstructionInitialState(2, Instruction.AND, AddressingMode.IMM);
+            case 0x25 -> loadInstructionInitialState(3, Instruction.AND, AddressingMode.ZPG);
+            case 0x35 -> loadInstructionInitialState(4, Instruction.AND, AddressingMode.ZPG_X);
+            case 0x2D -> loadInstructionInitialState(4, Instruction.AND, AddressingMode.ABS);
+            case 0x3D -> loadInstructionInitialState(5, Instruction.AND, AddressingMode.ABS_X);
+            case 0x39 -> loadInstructionInitialState(5, Instruction.AND, AddressingMode.ABS_Y);
+            case 0x21 -> loadInstructionInitialState(6, Instruction.AND, AddressingMode.IND_X);
+            case 0x31 -> loadInstructionInitialState(6, Instruction.AND, AddressingMode.IND_Y);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -233,6 +251,9 @@ public class CPU {
             case INX -> INX();
             case INY -> INY();
             case ORA -> ORA();
+            case EOR -> EOR();
+            case AND -> AND();
+            default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
 
@@ -504,6 +525,42 @@ public class CPU {
             case IND_X -> handleRead_IndirectXIndexed(a, operand -> a.getValue() | operand);
             case IND_Y -> handleRead_IndirectYIndexed(a, operand -> a.getValue() | operand);
             default -> throw new RuntimeException("Unsupported addressing mode for ORA: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            zero = (a.getValue() == 0);
+            negative = (a.getValue() & 0x80) != 0;
+        }
+    }
+
+    private void EOR() {
+        switch (currInstruction.addressingMode) {
+            case IMM -> a.setValue(a.getValue() ^ fetch());
+            case ZPG -> handleRead_ZeroPageMode(a, operand -> a.getValue() ^ operand);
+            case ZPG_X -> handleRead_ZeroPageIndexed(a, x, operand -> a.getValue() ^ operand);
+            case ABS -> handleRead_AbsoluteMode(a, operand -> a.getValue() ^ operand);
+            case ABS_X -> handleRead_AbsoluteIndexed(a, x, operand -> a.getValue() ^ operand);
+            case ABS_Y -> handleRead_AbsoluteIndexed(a, y, operand -> a.getValue() ^ operand);
+            case IND_X -> handleRead_IndirectXIndexed(a, operand -> a.getValue() ^ operand);
+            case IND_Y -> handleRead_IndirectYIndexed(a, operand -> a.getValue() ^ operand);
+            default -> throw new RuntimeException("Unsupported addressing mode for EOR: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            zero = (a.getValue() == 0);
+            negative = (a.getValue() & 0x80) != 0;
+        }
+    }
+
+    private void AND() {
+        switch (currInstruction.addressingMode) {
+            case IMM -> a.setValue(a.getValue() & fetch());
+            case ZPG -> handleRead_ZeroPageMode(a, operand -> a.getValue() & operand);
+            case ZPG_X -> handleRead_ZeroPageIndexed(a, x, operand -> a.getValue() & operand);
+            case ABS -> handleRead_AbsoluteMode(a, operand -> a.getValue() & operand);
+            case ABS_X -> handleRead_AbsoluteIndexed(a, x, operand -> a.getValue() & operand);
+            case ABS_Y -> handleRead_AbsoluteIndexed(a, y, operand -> a.getValue() & operand);
+            case IND_X -> handleRead_IndirectXIndexed(a, operand -> a.getValue() & operand);
+            case IND_Y -> handleRead_IndirectYIndexed(a, operand -> a.getValue() & operand);
+            default -> throw new RuntimeException("Unsupported addressing mode for AND: " + currInstruction.addressingMode);
         }
         if (remainingCycles == 1) {
             zero = (a.getValue() == 0);

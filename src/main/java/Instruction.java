@@ -21,5 +21,7 @@ public enum Instruction {
     INC,
     INX,
     INY,
-    ORA
+    ORA,
+    EOR,
+    AND
 }

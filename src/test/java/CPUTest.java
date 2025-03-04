@@ -1621,4 +1621,522 @@ class CPUTest {
         assertEquals(expectedZero, state.isZero());
         assertEquals(expectedNegative, state.isNegative());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "15, 240, 255, false, true",
+            "128, 127, 255, false, true",
+            "32, 16, 48, false, false"
+    })
+    public void EOR_Immediate(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x49;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, operand)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "15, 240, 255, false, true",
+            "128, 127, 255, false, true",
+            "32, 16, 48, false, false"
+    })
+    public void EOR_ZeroPage(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x45;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, 0x10)
+                .withMemoryValue(0x0010, operand)
+                .buildAndRun(3);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 0, true, false",
+            "15, 5, 240, 255, false, true",
+            "128, 5, 127, 255, false, true",
+            "32, 5, 16, 48, false, false"
+    })
+    public void EOR_ZeroPageX(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x55;
+        int baseAddress = 0x10;
+        int effectiveAddress = (baseAddress + regX) & 0xFF;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress)
+                .withMemoryValue(effectiveAddress, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "15, 240, 255, false, true",
+            "128, 127, 255, false, true",
+            "32, 16, 48, false, false"
+    })
+    public void EOR_Absolute(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x4D;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, 0x00, 0x90)
+                .withMemoryValue(0x9000, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 0, true, false",
+            "15, 5, 240, 255, false, true",
+            "128, 5, 127, 255, false, true",
+            "32, 5, 16, 48, false, false"
+    })
+    public void EOR_AbsoluteX_NoPageCrossing(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x5D;
+        int baseAddress = 0x9000; // No page crossing: 0x9000 + regX remains in page 0x90
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 0, 0, true, false",
+            "15, 1, 240, 255, false, true",
+            "128, 1, 127, 255, false, true",
+            "32, 1, 16, 48, false, false"
+    })
+    public void EOR_AbsoluteX_PageCrossing(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x5D;
+        int baseAddress = 0x90FF; // With regX = 1, effective address = 0x90FF + 1 = 0x9100 (page crossing)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, operand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, true, false",
+            "15, 5, 240, false, true",
+            "128, 5, 127, false, true",
+            "32, 5, 16, false, false"
+    })
+    public void EOR_AbsoluteY_NoPageCrossing(int initialA, int regY, int operand, boolean expectedZero, boolean expectedNegative) {
+        int expected = initialA ^ operand;
+        final int opcode = 0x59;
+        int baseAddress = 0x9000;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regY, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 0, true, false",
+            "15, 1, 240, false, true",
+            "128, 1, 127, false, true",
+            "32, 1, 16, false, false"
+    })
+    public void EOR_AbsoluteY_PageCrossing(int initialA, int regY, int operand, boolean expectedZero, boolean expectedNegative) {
+        int expected = initialA ^ operand;
+        final int opcode = 0x59;
+        int baseAddress = 0x90FF;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regY, operand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialA, regX, instrOperand, pointerLow, pointerHigh, memOperand, expectedResult, expectedZero, expectedNegative
+            "0, 5, 16, 0, 144, 0, 0, true, false",
+            "15, 5, 16, 0, 144, 240, 255, false, true",
+            "128, 5, 16, 0, 144, 127, 255, false, true",
+            "32, 5, 16, 0, 144, 16, 48, false, false"
+    })
+    public void EOR_IndirectX(int initialA, int regX, int instrOperand, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x41;
+        int zpAddr = (instrOperand + regX) & 0xFF;
+        int effectiveAddress = (pointerHigh << 8) | pointerLow;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(zpAddr, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(6);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialA, regY, pointerLow, pointerHigh, memOperand, expectedResult, expectedZero, expectedNegative
+            "0, 5, 144, 0, 0, 0, true, false",   // Pointer at 0x9000, effective address = 0x9000+5
+            "15, 5, 144, 0, 240, 255, false, true",
+            "128, 5, 144, 0, 127, 255, false, true",
+            "32, 5, 144, 0, 16, 48, false, false"
+    })
+    public void EOR_IndirectY_NoPageCrossing(int initialA, int regY, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x51;
+        int instrOperand = 0x20;
+        int baseAddress = (pointerHigh << 8) | pointerLow;
+        int effectiveAddress = baseAddress + regY;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(instrOperand, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 255, 144, 0, 0, true, false",      // Pointer at 0x90FF, effective address = 0x90FF+1 (page crossing)
+            "15, 1, 255, 144, 240, 255, false, true",
+            "128, 1, 255, 144, 127, 255, false, true",
+            "32, 1, 255, 144, 16, 48, false, false"
+    })
+    public void EOR_IndirectY_PageCrossing(int initialA, int regY, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x51;
+        int instrOperand = 0x20;
+        int baseAddress = (pointerHigh << 8) | pointerLow;
+        int effectiveAddress = baseAddress + regY;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(instrOperand, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(6);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "255, 170, 170, false, true",  // 0xFF & 0xAA = 0xAA (170)
+            "170, 85, 0, true, false",      // 0xAA & 0x55 = 0
+            "200, 170, 136, false, true"     // 200 & 170 = 136
+    })
+    public void AND_Immediate(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x29;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, operand)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "255, 170, 170, false, true",
+            "170, 85, 0, true, false",
+            "200, 170, 136, false, true"
+    })
+    public void AND_ZeroPage(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x25;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, 0x10)
+                .withMemoryValue(0x0010, operand)
+                .buildAndRun(3);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 0, true, false",
+            "255, 5, 170, 170, false, true",
+            "170, 5, 85, 0, true, false",
+            "200, 5, 170, 136, false, true"
+    })
+    public void AND_ZeroPageX(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x35;
+        int baseAddress = 0x10;
+        int effectiveAddress = (baseAddress + regX) & 0xFF;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress)
+                .withMemoryValue(effectiveAddress, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "255, 170, 170, false, true",
+            "170, 85, 0, true, false",
+            "200, 170, 136, false, true"
+    })
+    public void AND_Absolute(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x2D;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, 0x00, 0x90)  // Address 0x9000
+                .withMemoryValue(0x9000, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 0, true, false",
+            "255, 5, 170, 170, false, true",
+            "170, 5, 85, 0, true, false",
+            "200, 5, 170, 136, false, true"
+    })
+    public void AND_AbsoluteX_NoPageCrossing(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x3D;
+        int baseAddress = 0x9000; // No page crossing: 0x9000 + regX remains in page 0x90
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 0, 0, true, false",
+            "255, 1, 170, 170, false, true",
+            "170, 1, 85, 0, true, false",
+            "200, 1, 170, 136, false, true"
+    })
+    public void AND_AbsoluteX_PageCrossing(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x3D;
+        int baseAddress = 0x90FF; // With regX = 1, effective address = 0x90FF + 1 = 0x9100 (page crossing)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, operand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, true, false",
+            "255, 5, 170, false, true",
+            "170, 5, 85, true, false",
+            "200, 5, 170, false, true"
+    })
+    public void AND_AbsoluteY_NoPageCrossing(int initialA, int regY, int operand, boolean expectedZero, boolean expectedNegative) {
+        int expected = initialA & operand;
+        final int opcode = 0x39;
+        int baseAddress = 0x9000; // With regY = 5, effective address = 0x9000 + 5, no page crossing
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regY, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 0, true, false",
+            "255, 1, 170, false, true",
+            "170, 1, 85, true, false",
+            "200, 1, 170, false, true"
+    })
+    public void AND_AbsoluteY_PageCrossing(int initialA, int regY, int operand, boolean expectedZero, boolean expectedNegative) {
+        int expected = initialA & operand;
+        final int opcode = 0x39;
+        int baseAddress = 0x90FF; // With regY = 1, effective address = 0x90FF + 1 = 0x9100 (page crossing)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regY, operand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialA, regX, instrOperand, pointerLow, pointerHigh, memOperand, expected, expectedZero, expectedNegative
+            "0, 5, 16, 0, 144, 0, 0, true, false",
+            "255, 5, 16, 0, 144, 170, 170, false, true",
+            "170, 5, 16, 0, 144, 85, 0, true, false",
+            "200, 5, 16, 0, 144, 170, 136, false, true"
+    })
+    public void AND_IndirectX(int initialA, int regX, int instrOperand, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x21;
+        int zpAddr = (instrOperand + regX) & 0xFF;
+        int effectiveAddress = (pointerHigh << 8) | pointerLow;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(zpAddr, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(6);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialA, regY, pointerLow, pointerHigh, memOperand, expected, expectedZero, expectedNegative
+            "0, 5, 144, 0, 0, 0, true, false",   // Pointer at 0x9000, effective address = 0x9000+5
+            "255, 5, 144, 0, 170, 170, false, true",
+            "170, 5, 144, 0, 85, 0, true, false",
+            "200, 5, 144, 0, 170, 136, false, true"
+    })
+    public void AND_IndirectY_NoPageCrossing(int initialA, int regY, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x31; // AND (Indirect),Y opcode
+        int instrOperand = 0x20;
+        int baseAddress = (pointerHigh << 8) | pointerLow;
+        int effectiveAddress = baseAddress + regY;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(instrOperand, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 255, 144, 0, 0, true, false",      // Pointer at 0x90FF, effective address = 0x90FF+1 (page crossing)
+            "255, 1, 255, 144, 170, 170, false, true",
+            "170, 1, 255, 144, 85, 0, true, false",
+            "200, 1, 255, 144, 170, 136, false, true"
+    })
+    public void AND_IndirectY_PageCrossing(int initialA, int regY, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x31;
+        int instrOperand = 0x20;
+        int baseAddress = (pointerHigh << 8) | pointerLow;
+        int effectiveAddress = baseAddress + regY;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(instrOperand, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(6);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
 }
