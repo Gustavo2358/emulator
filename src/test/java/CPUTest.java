@@ -1364,4 +1364,261 @@ class CPUTest {
         assertEquals(expectedZero, cpu.getState().isZero());
         assertEquals(expectedNegative, cpu.getState().isNegative());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "15, 240, 255, false, true",
+            "128, 127, 255, false, true",
+            "32, 16, 48, false, false"
+    })
+    public void ORA_Immediate(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x09;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, operand)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "15, 240, 255, false, true",
+            "128, 127, 255, false, true",
+            "32, 16, 48, false, false"
+    })
+    public void ORA_ZeroPage(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x05;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, 0x10)
+                .withMemoryValue(0x0010, operand)
+                .buildAndRun(3);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 0, true, false",
+            "15, 5, 240, 255, false, true",
+            "128, 5, 127, 255, false, true",
+            "32, 5, 16, 48, false, false"
+    })
+    public void ORA_ZeroPageX(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x15;
+        int baseAddress = 0x10;
+        int effectiveAddress = (baseAddress + regX) & 0xFF;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress)
+                .withMemoryValue(effectiveAddress, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 0, 0, true, false",
+            "15, 240, 255, false, true",
+            "128, 127, 255, false, true",
+            "32, 16, 48, false, false"
+    })
+    public void ORA_Absolute(int initialA, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x0D;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withInstruction(0x8000, opcode, 0x00, 0x90)  // Address 0x9000
+                .withMemoryValue(0x9000, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialA, regX, operand, expectedResult, expectedZero, expectedNegative
+            "0, 5, 0, 0, true, false",
+            "15, 5, 240, 255, false, true",
+            "128, 5, 127, 255, false, true",
+            "32, 5, 16, 48, false, false"
+    })
+    public void ORA_AbsoluteX_NoPageCrossing(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x1D;
+        int baseAddress = 0x9000;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 0, 0, true, false",
+            "15, 1, 240, 255, false, true",
+            "128, 1, 127, 255, false, true",
+            "32, 1, 16, 48, false, false"
+    })
+    public void ORA_AbsoluteX_PageCrossing(int initialA, int regX, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x1D;
+        int baseAddress = 0x90FF; // With regX = 1, effective address = 0x90FF + 1 = 0x9100 (page crossing)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, operand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 0, true, false",
+            "15, 5, 240, 255, false, true",
+            "128, 5, 127, 255, false, true",
+            "32, 5, 16, 48, false, false"
+    })
+    public void ORA_AbsoluteY_NoPageCrossing(int initialA, int regY, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x19;
+        int baseAddress = 0x9000;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regY, operand)
+                .buildAndRun(4);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 0, 0, true, false",
+            "15, 1, 240, 255, false, true",
+            "128, 1, 127, 255, false, true",
+            "32, 1, 16, 48, false, false"
+    })
+    public void ORA_AbsoluteY_PageCrossing(int initialA, int regY, int operand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x19;
+        int baseAddress = 0x90FF;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regY, operand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialA, regX, instrOperand, pointerLow, pointerHigh, memOperand, expectedResult, expectedZero, expectedNegative
+            "0, 5, 16, 0, 144, 0, 0, true, false",
+            "15, 5, 16, 0, 144, 240, 255, false, true",
+            "128, 5, 16, 0, 144, 127, 255, false, true",
+            "32, 5, 16, 0, 144, 16, 48, false, false"
+    })
+    public void ORA_IndirectX(int initialA, int regX, int instrOperand, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x01;
+        int zpAddr = (instrOperand + regX) & 0xFF;
+        int effectiveAddress = (pointerHigh << 8) | pointerLow;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(regX)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(zpAddr, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(6);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, 0, 144, 0, 0, true, false", // Pointer at 0x9000, effective address = 0x9000+5 = 0x9005
+            "15, 5, 0, 144, 240, 255, false, true",
+            "128, 5, 0, 144, 127, 255, false, true",
+            "32, 5, 0, 144, 16, 48, false, false"
+    })
+    public void ORA_IndirectY_NoPageCrossing(int initialA, int regY, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x11;
+        int instrOperand = 0x20;
+        int baseAddress = (pointerHigh << 8) | pointerLow;
+        int effectiveAddress = baseAddress + regY; // Should be 0x9000 + 5 = 0x9005, no page crossing
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(instrOperand, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(5);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 1, 255, 144, 0, 0, true, false",      // Pointer at 0x90FF, effective address = 0x90FF+1 = 0x9100 (page crossing)
+            "15, 1, 255, 144, 240, 255, false, true",
+            "128, 1, 255, 144, 127, 255, false, true",
+            "32, 1, 255, 144, 16, 48, false, false"
+    })
+    public void ORA_IndirectY_PageCrossing(int initialA, int regY, int pointerLow, int pointerHigh, int memOperand, int expected, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0x11;
+        int instrOperand = 0x20;
+        int baseAddress = (pointerHigh << 8) | pointerLow;
+        int effectiveAddress = baseAddress + regY; // 0x90FF + 1 = 0x9100 (page crossing)
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(regY)
+                .withInstruction(0x8000, opcode, instrOperand)
+                .withZeroPagePointer(instrOperand, pointerLow, pointerHigh)
+                .withMemoryValue(effectiveAddress, memOperand)
+                .buildAndRun(6);
+        CpuState state = cpu.getState();
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
 }

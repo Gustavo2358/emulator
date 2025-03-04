@@ -194,6 +194,15 @@ public class CPU {
             case 0xE8 -> loadInstructionInitialState(2, Instruction.INX, AddressingMode.IMP);
             //INY opcode:
             case 0xC8 -> loadInstructionInitialState(2, Instruction.INY, AddressingMode.IMP);
+            // ORA opcodes:
+            case 0x09 -> loadInstructionInitialState(2, Instruction.ORA, AddressingMode.IMM);
+            case 0x05 -> loadInstructionInitialState(3, Instruction.ORA, AddressingMode.ZPG);
+            case 0x15 -> loadInstructionInitialState(4, Instruction.ORA, AddressingMode.ZPG_X);
+            case 0x0D -> loadInstructionInitialState(4, Instruction.ORA, AddressingMode.ABS);
+            case 0x1D -> loadInstructionInitialState(5, Instruction.ORA, AddressingMode.ABS_X);
+            case 0x19 -> loadInstructionInitialState(5, Instruction.ORA, AddressingMode.ABS_Y);
+            case 0x01 -> loadInstructionInitialState(6, Instruction.ORA, AddressingMode.IND_X);
+            case 0x11 -> loadInstructionInitialState(6, Instruction.ORA, AddressingMode.IND_Y);
 
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
@@ -223,6 +232,7 @@ public class CPU {
             case INC -> INC();
             case INX -> INX();
             case INY -> INY();
+            case ORA -> ORA();
         }
     }
 
@@ -483,6 +493,24 @@ public class CPU {
         negative = (y.getValue() & 0x80) != 0;
     }
 
+    private void ORA() {
+        switch (currInstruction.addressingMode) {
+            case IMM -> a.setValue(a.getValue() | fetch());
+            case ZPG -> handleRead_ZeroPageMode(a, operand -> a.getValue() | operand);
+            case ZPG_X -> handleRead_ZeroPageIndexed(a, x, operand -> a.getValue() | operand);
+            case ABS -> handleRead_AbsoluteMode(a, operand -> a.getValue() | operand);
+            case ABS_X -> handleRead_AbsoluteIndexed(a, x, operand -> a.getValue() | operand);
+            case ABS_Y -> handleRead_AbsoluteIndexed(a, y, operand -> a.getValue() | operand);
+            case IND_X -> handleRead_IndirectXIndexed(a, operand -> a.getValue() | operand);
+            case IND_Y -> handleRead_IndirectYIndexed(a, operand -> a.getValue() | operand);
+            default -> throw new RuntimeException("Unsupported addressing mode for ORA: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            zero = (a.getValue() == 0);
+            negative = (a.getValue() & 0x80) != 0;
+        }
+    }
+
     private void handleReadModifyWriteInstructions_AbsoluteMode(Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 5 -> currInstruction.effectiveAddress = fetch();
@@ -602,7 +630,10 @@ public class CPU {
                 currInstruction.effectiveAddress = (address + y.getValue()) & 0xFFFF;
                 handlePageCrossingInLoadInstruction(address, register, operation);
             }
-            case 1 -> register.setValue(read(currInstruction.effectiveAddress));
+            case 1 -> {
+                int read = read(currInstruction.effectiveAddress);
+                register.setValue(operation.apply(read));
+            }
         }
     }
 
@@ -664,6 +695,4 @@ public class CPU {
             case 1 -> bus.write(currInstruction.effectiveAddress, a.getValue());
         }
     }
-
-
 }

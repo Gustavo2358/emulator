@@ -20,5 +20,6 @@ public enum Instruction {
     DEY,
     INC,
     INX,
-    INY
+    INY,
+    ORA
 }
