@@ -2392,4 +2392,165 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
         assertEquals(expectedCarry, state.isCarry());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, false, 0, true, false, false",
+            "0, true, 1, false, false, false",
+            "1, false, 2, false, false, false",
+            "1, true, 3, false, false, false",
+            "128, false, 0, true, false, true",   // 0x80 -> result=0, carry=1
+            "128, true, 1, false, false, true",
+            "85, false, 170, false, true, false",  // 0x55 -> 0xAA
+            "85, true, 171, false, true, false",   // 0x55 -> 0xAB
+            "255, false, 254, false, true, true",  // 0xFF -> 0xFE, carry=1
+            "255, true, 255, false, true, true"
+    })
+    public void ROL_Accumulator(int initialA, boolean initialCarry, int expected,
+                                boolean expectedZero, boolean expectedNegative, boolean expectedNewCarry) {
+        final int opcode = 0x2A;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+
+        assertEquals(expected, state.getA());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedNewCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, false, 0, true, false, false",
+            "0, true, 1, false, false, false",
+            "1, false, 2, false, false, false",
+            "1, true, 3, false, false, false",
+            "128, false, 0, true, false, true",
+            "128, true, 1, false, false, true",
+            "85, false, 170, false, true, false",
+            "85, true, 171, false, true, false"
+    })
+    public void ROL_ZeroPage(int initial, boolean initialCarry, int expected,
+                             boolean expectedZero, boolean expectedNegative, boolean expectedNewCarry) {
+        final int opcode = 0x26;
+        int address = 0x10;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, address)
+                .withMemoryValue(address, initial)
+                .buildAndRun(5, bus);
+        CpuState state = cpu.getState();
+
+        assertEquals(expected, bus.read(address));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedNewCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, false, 0, true, false, false",
+            "0, 5, true, 1, false, false, false",
+            "1, 5, false, 2, false, false, false",
+            "1, 5, true, 3, false, false, false",
+            "128, 5, false, 0, true, false, true",
+            "128, 5, true, 1, false, false, true",
+            "85, 5, false, 170, false, true, false",
+            "85, 5, true, 171, false, true, false"
+    })
+    public void ROL_ZeroPageX(int initial, int regX, boolean initialCarry, int expected,
+                              boolean expectedZero, boolean expectedNegative, boolean expectedNewCarry) {
+        final int opcode = 0x36;
+        int baseAddress = 0x10;
+        int effectiveAddress = (baseAddress + regX) & 0xFF;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(regX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, baseAddress)
+                .withMemoryValue(effectiveAddress, initial)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+
+        assertEquals(expected, bus.read(effectiveAddress));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedNewCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, false, 0, true, false, false",
+            "0, true, 1, false, false, false",
+            "1, false, 2, false, false, false",
+            "1, true, 3, false, false, false",
+            "128, false, 0, true, false, true",
+            "128, true, 1, false, false, true",
+            "85, false, 170, false, true, false",
+            "85, true, 171, false, true, false"
+    })
+    public void ROL_Absolute(int initial, boolean initialCarry, int expected,
+                             boolean expectedZero, boolean expectedNegative, boolean expectedNewCarry) {
+        final int opcode = 0x2E;
+        int address = 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, address & 0xFF, (address >> 8) & 0xFF)
+                .withMemoryValue(address, initial)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+
+        assertEquals(expected, bus.read(address));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedNewCarry, state.isCarry());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0, 5, false, 0, true, false, false",
+            "0, 5, true, 1, false, false, false",
+            "1, 5, false, 2, false, false, false",
+            "1, 5, true, 3, false, false, false",
+            "128, 5, false, 0, true, false, true",
+            "128, 5, true, 1, false, false, true",
+            "85, 5, false, 170, false, true, false",
+            "85, 5, true, 171, false, true, false",
+            "0, 1, false, 0, true, false, false",
+            "0, 1, true, 1, false, false, false",
+            "1, 1, false, 2, false, false, false",
+            "1, 1, true, 3, false, false, false",
+            "128, 1, false, 0, true, false, true",
+            "128, 1, true, 1, false, false, true",
+            "85, 1, false, 170, false, true, false",
+            "85, 1, true, 171, false, true, false"
+    })
+    public void ROL_AbsoluteX(int initial, int regX, boolean initialCarry, int expected,
+                              boolean expectedZero, boolean expectedNegative, boolean expectedNewCarry) {
+        final int opcode = 0x3E;
+        int baseAddress = (regX == 1) ? 0x90FF : 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(regX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(baseAddress + regX, initial)
+                .buildAndRun(7, bus);
+        CpuState state = cpu.getState();
+
+        assertEquals(expected, bus.read(baseAddress + regX));
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedNewCarry, state.isCarry());
+    }
 }

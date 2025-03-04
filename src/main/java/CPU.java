@@ -233,7 +233,18 @@ public class CPU {
             case 0x56 -> loadInstructionInitialState(6, Instruction.LSR, AddressingMode.ZPG_X);
             case 0x4E -> loadInstructionInitialState(6, Instruction.LSR, AddressingMode.ABS);
             case 0x5E -> loadInstructionInitialState(7, Instruction.LSR, AddressingMode.ABS_X);
-
+            // ROL opcodes:
+            case 0x2A -> loadInstructionInitialState(2, Instruction.ROL, AddressingMode.ACC);
+            case 0x26 -> loadInstructionInitialState(5, Instruction.ROL, AddressingMode.ZPG);
+            case 0x36 -> loadInstructionInitialState(6, Instruction.ROL, AddressingMode.ZPG_X);
+            case 0x2E -> loadInstructionInitialState(6, Instruction.ROL, AddressingMode.ABS);
+            case 0x3E -> loadInstructionInitialState(7, Instruction.ROL, AddressingMode.ABS_X);
+            // ROR opcodes:
+//            case 0x6A -> loadInstructionInitialState(2, Instruction.ROR, AddressingMode.ACC);
+//            case 0x66 -> loadInstructionInitialState(5, Instruction.ROR, AddressingMode.ZPG);
+//            case 0x76 -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ZPG_X);
+//            case 0x6E -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ABS);
+//            case 0x7E -> loadInstructionInitialState(7, Instruction.ROR, AddressingMode.ABS_X);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -267,6 +278,8 @@ public class CPU {
             case AND -> AND();
             case ASL -> ASL();
             case LSR -> LSR();
+            case ROL -> ROL();
+//            case ROR -> ROR();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -626,6 +639,54 @@ public class CPU {
             int result = currInstruction.tempLatch;
             zero = (result == 0);
             negative = false;
+        }
+    }
+
+    private void ROL() {
+        Function<Integer, Integer> rotateOperation = value -> {
+            int result = ((value << 1) | (carry ? 1 : 0)) & 0xFF;
+            carry = (value & 0x80) != 0;
+            return result;
+        };
+        switch (currInstruction.addressingMode) {
+            case ACC -> {
+                currInstruction.tempLatch = rotateOperation.apply(a.getValue());
+                a.setValue(currInstruction.tempLatch);
+            }
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(rotateOperation);
+            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, rotateOperation);
+            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode(rotateOperation);
+            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x, rotateOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for ROL: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            int result = currInstruction.tempLatch;
+            zero = (result == 0);
+            negative = (result & 0x80) != 0;
+        }
+    }
+
+    private void ROR() {
+        Function<Integer, Integer> rotateOperation = value -> {
+            int result = ((carry ? 0x80 : 0) | (value >>> 1)) & 0xFF;
+            carry = (value & 0x01) != 0;
+            return result;
+        };
+        switch (currInstruction.addressingMode) {
+            case ACC -> {
+                currInstruction.tempLatch = rotateOperation.apply(a.getValue());
+                a.setValue(currInstruction.tempLatch);
+            }
+            case ZPG -> handleReadModifyWriteInstructions_ZeroPageMode(rotateOperation);
+            case ZPG_X -> handleReadModifyWriteInstructions_ZeroPageIndexed(x, rotateOperation);
+            case ABS -> handleReadModifyWriteInstructions_AbsoluteMode(rotateOperation);
+            case ABS_X -> handleReadModifyWriteInstructions_AbsoluteIndexed(x, rotateOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for ROR: " + currInstruction.addressingMode);
+        }
+        if (remainingCycles == 1) {
+            int result = currInstruction.tempLatch;
+            zero = (result == 0);
+            negative = (result & 0x80) != 0;
         }
     }
 
