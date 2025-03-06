@@ -250,6 +250,11 @@ public class CPU {
             case 0xD8 -> loadInstructionInitialState(2, Instruction.CLD, AddressingMode.IMP);
             case 0x58 -> loadInstructionInitialState(2, Instruction.CLI, AddressingMode.IMP);
             case 0xB8 -> loadInstructionInitialState(2, Instruction.CLV, AddressingMode.IMP);
+            // Set Flag instructions:
+            case 0x38 -> loadInstructionInitialState(2, Instruction.SEC, AddressingMode.IMP);
+            case 0xF8 -> loadInstructionInitialState(2, Instruction.SED, AddressingMode.IMP);
+            case 0x78 -> loadInstructionInitialState(2, Instruction.SEI, AddressingMode.IMP);
+
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -289,6 +294,9 @@ public class CPU {
             case CLD -> CLD();
             case CLI -> CLI();
             case CLV -> CLV();
+            case SEC -> SEC();
+            case SED -> SED();
+            case SEI -> SEI();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -713,6 +721,18 @@ public class CPU {
 
     private void CLV() {
         overflow = false;
+    }
+
+    private void SEC() {
+        carry = true;
+    }
+
+    private void SED() {
+        decimal = true;
+    }
+
+    private void SEI() {
+        interruptDisable = true;
     }
 
     private void handleReadModifyWriteInstructions_AbsoluteMode(Function<Integer, Integer> operation) {

@@ -2720,55 +2720,87 @@ class CPUTest {
         assertEquals(expectedNewCarry, state.isCarry());
     }
 
-    // CLC - Clear Carry Flag
     @Test
     public void CLC_ClearsCarryFlag() {
-        final int opcode = 0x18; // CLC opcode
+        final int opcode = 0x18;
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withFlagCarry(true) // set carry flag initially
+                .withFlagCarry(true)
                 .withInstruction(0x8000, opcode)
                 .buildAndRun(2);
         CpuState state = cpu.getState();
         assertFalse(state.isCarry());
     }
 
-    // CLD - Clear Decimal Mode
     @Test
     public void CLD_ClearsDecimalFlag() {
-        final int opcode = 0xD8; // CLD opcode
+        final int opcode = 0xD8;
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withFlagDecimal(true) // set decimal flag initially
+                .withFlagDecimal(true)
                 .withInstruction(0x8000, opcode)
                 .buildAndRun(2);
         CpuState state = cpu.getState();
         assertFalse(state.isDecimal());
     }
 
-    // CLI - Clear Interrupt Disable Bit
     @Test
     public void CLI_ClearsInterruptDisableFlag() {
-        final int opcode = 0x58; // CLI opcode
+        final int opcode = 0x58;
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withFlagInterruptDisable(true) // set interrupt disable flag initially
+                .withFlagInterruptDisable(true)
                 .withInstruction(0x8000, opcode)
                 .buildAndRun(2);
         CpuState state = cpu.getState();
         assertFalse(state.isInterruptDisable());
     }
 
-    // CLV - Clear Overflow Flag
     @Test
     public void CLV_ClearsOverflowFlag() {
-        final int opcode = 0xB8; // CLV opcode
+        final int opcode = 0xB8;
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withFlagOverflow(true) // set overflow flag initially
+                .withFlagOverflow(true)
                 .withInstruction(0x8000, opcode)
                 .buildAndRun(2);
         CpuState state = cpu.getState();
         assertFalse(state.isOverflow());
+    }
+
+    @Test
+    public void SEC_SetsCarryFlag() {
+        final int opcode = 0x38;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagCarry(false)
+                .withInstruction(0x8000, opcode)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertTrue(state.isCarry());
+    }
+
+    @Test
+    public void SED_SetsDecimalFlag() {
+        final int opcode = 0xF8;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagDecimal(false)
+                .withInstruction(0x8000, opcode)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertTrue(state.isDecimal());
+    }
+
+    @Test
+    public void SEI_SetsInterruptDisableFlag() {
+        final int opcode = 0x78;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagInterruptDisable(false)
+                .withInstruction(0x8000, opcode)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertTrue(state.isInterruptDisable());
     }
 }

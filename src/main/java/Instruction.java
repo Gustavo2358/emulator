@@ -31,5 +31,8 @@ public enum Instruction {
     CLC,
     CLD,
     CLI,
-    CLV
+    CLV,
+    SEC,
+    SED,
+    SEI
 }
