@@ -240,11 +240,11 @@ public class CPU {
             case 0x2E -> loadInstructionInitialState(6, Instruction.ROL, AddressingMode.ABS);
             case 0x3E -> loadInstructionInitialState(7, Instruction.ROL, AddressingMode.ABS_X);
             // ROR opcodes:
-//            case 0x6A -> loadInstructionInitialState(2, Instruction.ROR, AddressingMode.ACC);
-//            case 0x66 -> loadInstructionInitialState(5, Instruction.ROR, AddressingMode.ZPG);
-//            case 0x76 -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ZPG_X);
-//            case 0x6E -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ABS);
-//            case 0x7E -> loadInstructionInitialState(7, Instruction.ROR, AddressingMode.ABS_X);
+            case 0x6A -> loadInstructionInitialState(2, Instruction.ROR, AddressingMode.ACC);
+            case 0x66 -> loadInstructionInitialState(5, Instruction.ROR, AddressingMode.ZPG);
+            case 0x76 -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ZPG_X);
+            case 0x6E -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ABS);
+            case 0x7E -> loadInstructionInitialState(7, Instruction.ROR, AddressingMode.ABS_X);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -279,7 +279,7 @@ public class CPU {
             case ASL -> ASL();
             case LSR -> LSR();
             case ROL -> ROL();
-//            case ROR -> ROR();
+            case ROR -> ROR();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }

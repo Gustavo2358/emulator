@@ -26,5 +26,6 @@ public enum Instruction {
     AND,
     ASL,
     LSR,
-    ROL
+    ROL,
+    ROR
 }
