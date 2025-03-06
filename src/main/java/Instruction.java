@@ -34,5 +34,6 @@ public enum Instruction {
     CLV,
     SEC,
     SED,
-    SEI
+    SEI,
+    CMP
 }
