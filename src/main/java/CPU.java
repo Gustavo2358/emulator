@@ -245,6 +245,11 @@ public class CPU {
             case 0x76 -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ZPG_X);
             case 0x6E -> loadInstructionInitialState(6, Instruction.ROR, AddressingMode.ABS);
             case 0x7E -> loadInstructionInitialState(7, Instruction.ROR, AddressingMode.ABS_X);
+            // Clear Flag instructions:
+            case 0x18 -> loadInstructionInitialState(2, Instruction.CLC, AddressingMode.IMP);
+            case 0xD8 -> loadInstructionInitialState(2, Instruction.CLD, AddressingMode.IMP);
+            case 0x58 -> loadInstructionInitialState(2, Instruction.CLI, AddressingMode.IMP);
+            case 0xB8 -> loadInstructionInitialState(2, Instruction.CLV, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -280,6 +285,10 @@ public class CPU {
             case LSR -> LSR();
             case ROL -> ROL();
             case ROR -> ROR();
+            case CLC -> CLC();
+            case CLD -> CLD();
+            case CLI -> CLI();
+            case CLV -> CLV();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -688,6 +697,22 @@ public class CPU {
             zero = (result == 0);
             negative = (result & 0x80) != 0;
         }
+    }
+
+    private void CLC() {
+        carry = false;
+    }
+
+    private void CLD() {
+        decimal = false;
+    }
+
+    private void CLI() {
+        interruptDisable = false;
+    }
+
+    private void CLV() {
+        overflow = false;
     }
 
     private void handleReadModifyWriteInstructions_AbsoluteMode(Function<Integer, Integer> operation) {

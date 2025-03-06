@@ -27,5 +27,9 @@ public enum Instruction {
     ASL,
     LSR,
     ROL,
-    ROR
+    ROR,
+    CLC,
+    CLD,
+    CLI,
+    CLV
 }
