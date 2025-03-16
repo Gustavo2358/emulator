@@ -2804,16 +2804,6 @@ class CPUTest {
         assertTrue(state.isInterruptDisable());
     }
 
-    // ---------------------- CMP Instruction Tests ----------------------
-
-    /* CMP compares the accumulator (A) with a memory operand (M) by computing A-M.
-     * It does not update A, but sets:
-     *  - Carry flag if A >= M,
-     *  - Zero flag if A == M,
-     *  - Negative flag if the result (A-M) has bit 7 set.
-     */
-
-    // CMP Immediate (opcode 0xC9, 2 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, true, true, false",   // A==M: Zero set, Carry set
@@ -2831,14 +2821,12 @@ class CPUTest {
                 .withInstruction(0x8000, opcode, operand)
                 .buildAndRun(2);
         CpuState state = cpu.getState();
-        // A remains unchanged
         assertEquals(initialA, state.getA());
         assertEquals(expectedCarry, state.isCarry());
         assertEquals(expectedZero, state.isZero());
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Zero Page (opcode 0xC5, 3 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, true, true, false",
@@ -2865,7 +2853,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Zero Page,X (opcode 0xD5, 4 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 5, true, true, false",
@@ -2894,7 +2881,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Absolute (opcode 0xCD, 4 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, true, true, false",
@@ -2921,7 +2907,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Absolute,X - No Page Crossing (opcode 0xDD, 4 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 5, true, true, false",
@@ -2949,7 +2934,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Absolute,X - With Page Crossing (opcode 0xDD, 5 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 1, true, true, false",
@@ -2977,7 +2961,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Absolute,Y - No Page Crossing (opcode 0xD9, 4 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 5, true, true, false",
@@ -3005,7 +2988,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP Absolute,Y - With Page Crossing (opcode 0xD9, 5 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 1, true, true, false",
@@ -3033,7 +3015,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP (Indirect,X) (opcode 0xC1, 6 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 5, true, true, false",
@@ -3064,7 +3045,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP (Indirect),Y - No Page Crossing (opcode 0xD1, 5 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 5, true, true, false",
@@ -3095,7 +3075,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // CMP (Indirect),Y - With Page Crossing (opcode 0xD1, 6 cycles)
     @ParameterizedTest
     @CsvSource({
             "50, 50, 1, true, true, false",
@@ -3126,4 +3105,155 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            // initialX, operand, expectedCarry, expectedZero, expectedNegative
+            "50, 50, true, true, false",   // X == M
+            "50, 40, true, false, false",   // X > M
+            "40, 50, false, false, true",   // X < M
+            "255, 0, true, false, true",    // 255 >= 0, result=255 (0xFF, negative)
+            "0, 1, false, false, true"      // 0 < 1
+    })
+    public void CPX_Immediate(int initialX, int operand,
+                              boolean expectedCarry, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0xE0;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(initialX)
+                .withInstruction(0x8000, opcode, operand)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(initialX, state.getX());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "50, 50, true, true, false",
+            "50, 40, true, false, false",
+            "40, 50, false, false, true",
+            "255, 0, true, false, true",
+            "0, 1, false, false, true"
+    })
+    public void CPX_ZeroPage(int initialX, int operand,
+                             boolean expectedCarry, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0xE4;
+        int address = 0x10;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(initialX)
+                .withInstruction(0x8000, opcode, address)
+                .withMemoryValue(address, operand)
+                .buildAndRun(3, bus);
+        CpuState state = cpu.getState();
+        assertEquals(initialX, state.getX());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "50, 50, true, true, false",
+            "50, 40, true, false, false",
+            "40, 50, false, false, true",
+            "255, 0, true, false, true",
+            "0, 1, false, false, true"
+    })
+    public void CPX_Absolute(int initialX, int operand,
+                             boolean expectedCarry, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0xEC;
+        int address = 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterX(initialX)
+                .withInstruction(0x8000, opcode, address & 0xFF, (address >> 8) & 0xFF)
+                .withMemoryValue(address, operand)
+                .buildAndRun(4, bus);
+        CpuState state = cpu.getState();
+        assertEquals(initialX, state.getX());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialY, operand, expectedCarry, expectedZero, expectedNegative
+            "50, 50, true, true, false",   // Equal: zero set, carry set
+            "50, 40, true, false, false",   // Y > M: carry set, result positive
+            "40, 50, false, false, true",   // Y < M: carry clear, negative result
+            "255, 0, true, false, true",    // 255 >= 0, 255-0 = 255 (0xFF, negative)
+            "0, 1, false, false, true"      // 0 < 1: carry clear, negative result
+    })
+    public void CPY_Immediate(int initialY, int operand,
+                              boolean expectedCarry, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0xC0;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(initialY)
+                .withInstruction(0x8000, opcode, operand)
+                .buildAndRun(2);
+        CpuState state = cpu.getState();
+        assertEquals(initialY, state.getY());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "50, 50, true, true, false",
+            "50, 40, true, false, false",
+            "40, 50, false, false, true",
+            "255, 0, true, false, true",
+            "0, 1, false, false, true"
+    })
+    public void CPY_ZeroPage(int initialY, int operand,
+                             boolean expectedCarry, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0xC4;
+        int address = 0x10;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(initialY)
+                .withInstruction(0x8000, opcode, address)
+                .withMemoryValue(address, operand)
+                .buildAndRun(3, bus);
+        CpuState state = cpu.getState();
+        assertEquals(initialY, state.getY());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "50, 50, true, true, false",
+            "50, 40, true, false, false",
+            "40, 50, false, false, true",
+            "255, 0, true, false, true",
+            "0, 1, false, false, true"
+    })
+    public void CPY_Absolute(int initialY, int operand,
+                             boolean expectedCarry, boolean expectedZero, boolean expectedNegative) {
+        final int opcode = 0xCC;
+        int address = 0x9000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterY(initialY)
+                .withInstruction(0x8000, opcode, address & 0xFF, (address >> 8) & 0xFF)
+                .withMemoryValue(address, operand)
+                .buildAndRun(4, bus);
+        CpuState state = cpu.getState();
+        assertEquals(initialY, state.getY());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+    }
 }

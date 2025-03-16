@@ -262,6 +262,14 @@ public class CPU {
             case 0xD9 -> loadInstructionInitialState(5, Instruction.CMP, AddressingMode.ABS_Y);
             case 0xC1 -> loadInstructionInitialState(6, Instruction.CMP, AddressingMode.IND_X);
             case 0xD1 -> loadInstructionInitialState(6, Instruction.CMP, AddressingMode.IND_Y);
+            // CPX opcodes:
+            case 0xE0 -> loadInstructionInitialState(2, Instruction.CPX, AddressingMode.IMM);
+            case 0xE4 -> loadInstructionInitialState(3, Instruction.CPX, AddressingMode.ZPG);
+            case 0xEC -> loadInstructionInitialState(4, Instruction.CPX, AddressingMode.ABS);
+            // CPY opcodes:
+            case 0xC0 -> loadInstructionInitialState(2, Instruction.CPY, AddressingMode.IMM);
+            case 0xC4 -> loadInstructionInitialState(3, Instruction.CPY, AddressingMode.ZPG);
+            case 0xCC -> loadInstructionInitialState(4, Instruction.CPY, AddressingMode.ABS);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -305,6 +313,8 @@ public class CPU {
             case SED -> SED();
             case SEI -> SEI();
             case CMP -> CMP();
+            case CPX -> CPX();
+            case CPY -> CPY();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -743,16 +753,19 @@ public class CPU {
         interruptDisable = true;
     }
 
-    private void CMP() {
-        // Define a lambda that computes A - operand, sets the flags, and returns A (unchanged)
-        Function<Integer, Integer> cmpOperation = operand -> {
-            int A = a.getValue();
-            int diff = A - operand;
-            carry = A >= operand;
-            zero = (A == operand);
+    private Function<Integer, Integer> getCmpFunction(Register8Bit register) {
+        return operand -> {
+            int regValue = register.getValue() & 0xFF;
+            int diff = regValue - operand;
+            carry = regValue >= operand;
+            zero = (regValue == operand);
             negative = ((diff & 0x80) != 0);
-            return A;
+            return regValue;
         };
+    }
+
+    private void CMP() {
+        Function<Integer, Integer> cmpOperation = getCmpFunction(a);
         switch (currInstruction.addressingMode) {
             case IMM -> a.setValue(cmpOperation.apply(fetch()));
             case ZPG -> handleRead_ZeroPageMode(a, cmpOperation);
@@ -763,6 +776,26 @@ public class CPU {
             case IND_X -> handleRead_IndirectXIndexed(a, cmpOperation);
             case IND_Y -> handleRead_IndirectYIndexed(a, cmpOperation);
             default -> throw new RuntimeException("Unsupported addressing mode for CMP: " + currInstruction.addressingMode);
+        }
+    }
+
+    private void CPX() {
+        Function<Integer, Integer> cpxOperation = getCmpFunction(x);
+        switch (currInstruction.addressingMode) {
+            case IMM -> x.setValue(cpxOperation.apply(fetch()));
+            case ZPG -> handleRead_ZeroPageMode(x, cpxOperation);
+            case ABS -> handleRead_AbsoluteMode(x, cpxOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for CPX: " + currInstruction.addressingMode);
+        }
+    }
+
+    private void CPY() {
+        Function<Integer, Integer> cpyOperation = getCmpFunction(y);
+        switch (currInstruction.addressingMode) {
+            case IMM -> y.setValue(cpyOperation.apply(fetch()));
+            case ZPG -> handleRead_ZeroPageMode(y, cpyOperation);
+            case ABS -> handleRead_AbsoluteMode(y, cpyOperation);
+            default -> throw new RuntimeException("Unsupported addressing mode for CPY: " + currInstruction.addressingMode);
         }
     }
 

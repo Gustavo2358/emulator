@@ -35,5 +35,7 @@ public enum Instruction {
     SEC,
     SED,
     SEI,
-    CMP
+    CMP,
+    CPX,
+    CPY
 }
