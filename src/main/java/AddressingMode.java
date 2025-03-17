@@ -9,5 +9,6 @@ public enum AddressingMode {
     IND_X, //(indirect,X)
     IND_Y, //(indirect),Y
     IMP,
-    ACC // accumulator mode
+    ACC, // accumulator mode
+    REL
 }

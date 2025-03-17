@@ -37,5 +37,6 @@ public enum Instruction {
     SEI,
     CMP,
     CPX,
-    CPY
+    CPY,
+    BCC
 }

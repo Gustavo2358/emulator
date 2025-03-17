@@ -270,6 +270,8 @@ public class CPU {
             case 0xC0 -> loadInstructionInitialState(2, Instruction.CPY, AddressingMode.IMM);
             case 0xC4 -> loadInstructionInitialState(3, Instruction.CPY, AddressingMode.ZPG);
             case 0xCC -> loadInstructionInitialState(4, Instruction.CPY, AddressingMode.ABS);
+            // BCC opcode:
+            case 0x90 -> loadInstructionInitialState(4, Instruction.BCC, AddressingMode.REL);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -315,6 +317,7 @@ public class CPU {
             case CMP -> CMP();
             case CPX -> CPX();
             case CPY -> CPY();
+            case BCC -> BCC();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -796,6 +799,35 @@ public class CPU {
             case ZPG -> handleRead_ZeroPageMode(y, cpyOperation);
             case ABS -> handleRead_AbsoluteMode(y, cpyOperation);
             default -> throw new RuntimeException("Unsupported addressing mode for CPY: " + currInstruction.addressingMode);
+        }
+    }
+
+    private void BCC() {
+        Runnable operation = () -> {
+            if (carry) {
+                remainingCycles -= 2;
+            }
+        };
+        handleRelativeInstructions(operation);
+    }
+
+    private void handleRelativeInstructions(Runnable operation) {
+        switch (remainingCycles) {
+            case 3 -> {
+                currInstruction.operand = fetch();
+                operation.run();
+            }
+            case 2 -> {
+                int oldPC = pc;
+                // Convert operand (8-bit) to signed:
+                pc = (pc + (byte) currInstruction.operand) & 0xFFFF;
+                if ((oldPC & 0xFF00) == (pc & 0xFF00)) {
+                    remainingCycles--;
+                }
+            }
+            case 1 -> {
+                //Dummy cycle in case of page crossing
+            }
         }
     }
 

@@ -3256,4 +3256,52 @@ class CPUTest {
         assertEquals(expectedZero, state.isZero());
         assertEquals(expectedNegative, state.isNegative());
     }
+
+    // ---------------------- BCC Instruction Tests ----------------------
+    /*
+     * BCC (Branch if Carry Clear) tests:
+     * - If the Carry flag is clear, the branch is taken.
+     * - The branch offset is relative to the PC after fetching the branch instruction (PC + 2).
+     * - For example, with a reset vector of 0x8000, the PC becomes 0x8000, the branch opcode and offset are fetched,
+     *   and then PC becomes 0x8002. If branch is taken with an offset of +5, then target = 0x8002 + 5 = 0x8007.
+     */
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialCarry, branchOffset, expectedPC (hex)
+            "true, 5, 0x8002",       // Carry set => branch not taken, PC remains at 0x8002
+            "false, 5, 0x8007",      // Carry clear => branch taken: 0x8002 + 5 = 0x8007
+            "false, -3, 0x7FFF",     // Branch taken: 0x8002 - 3 = 0x7FFF
+            "true, -3, 0x8002"       // Carry set => branch not taken
+    })
+    public void BCC_Branch_Default(boolean initialCarry, int branchOffset, int expectedPC) {
+        final int opcode = 0x90;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(initialCarry ? 2 : 3);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // With reset vector 0x80F0, after fetching the branch instruction, PC becomes 0x80F2.
+            // For branch taken with an offset of +20 and a page crossing, the target becomes 0x80F2 + 20 = 0x8106.
+            // In this case, we expect 4 cycles if the branch is taken.
+            "false, 20, 0x8106",  // Carry clear => branch taken with page crossing
+            "true, 20, 0x80F2"    // Carry set => branch not taken, PC remains 0x80F2.
+    })
+    public void BCC_Branch_PageCrossing(boolean initialCarry, int branchOffset, int expectedPC) {
+        final int opcode = 0x90;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(initialCarry ? 2 : 4);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
 }
