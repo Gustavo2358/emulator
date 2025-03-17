@@ -3453,4 +3453,43 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(expectedPC, state.getPc());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialNegative, branchOffset, expectedPC (hex)
+            "false, 5, 0x8007",   // Negative false => branch taken: 0x8002 + 5 = 0x8007.
+            "true, 5, 0x8002",    // Negative true  => branch not taken, PC remains 0x8002.
+            "false, -3, 0x7FFF",  // Negative false => branch taken: 0x8002 - 3 = 0x7FFF.
+            "true, -3, 0x8002"    // Negative true  => branch not taken.
+    })
+    public void BPL_Branch_Default(boolean initialNegative, int branchOffset, int expectedPC) {
+        final int opcode = 0x10;
+        int cycles = (!initialNegative) ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagNegative(initialNegative)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // With reset vector 0x80F0, after fetching the branch, PC becomes 0x80F2.
+            // If branch is taken with an offset of +20 and page crossing occurs, the target becomes 0x80F2 + 20 = 0x8106.
+            "false, 20, 0x8106",  // Negative false => branch taken with page crossing (4 cycles).
+            "true, 20, 0x80F2"     // Negative true  => branch not taken, PC remains 0x80F2.
+    })
+    public void BPL_Branch_PageCrossing(boolean initialNegative, int branchOffset, int expectedPC) {
+        final int opcode = 0x10;
+        int cycles = (!initialNegative) ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagNegative(initialNegative)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
 }

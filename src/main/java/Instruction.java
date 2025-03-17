@@ -42,5 +42,6 @@ public enum Instruction {
     BCS,
     BEQ,
     BMI,
-    BNE
+    BNE,
+    BPL
 }
