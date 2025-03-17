@@ -3492,4 +3492,82 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(expectedPC, state.getPc());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialOverflow, branchOffset, expectedPC (hex)
+            "false, 5, 0x8007",   // Overflow clear => branch taken: 0x8002 + 5 = 0x8007.
+            "true, 5, 0x8002",    // Overflow set => branch not taken, PC remains 0x8002.
+            "false, -3, 0x7FFF",  // Overflow clear => branch taken: 0x8002 - 3 = 0x7FFF.
+            "true, -3, 0x8002"    // Overflow set => branch not taken.
+    })
+    public void BVC_Branch_Default(boolean initialOverflow, int branchOffset, int expectedPC) {
+        final int opcode = 0x50;
+        int cycles = (!initialOverflow) ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagOverflow(initialOverflow)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // Using a reset vector of 0x80F0, PC becomes 0x80F2 after fetch.
+            // If branch is taken with an offset of +20, target = 0x80F2 + 20 = 0x8106.
+            "false, 20, 0x8106",  // Overflow clear => branch taken with page crossing (4 cycles).
+            "true, 20, 0x80F2"    // Overflow set => branch not taken.
+    })
+    public void BVC_Branch_PageCrossing(boolean initialOverflow, int branchOffset, int expectedPC) {
+        final int opcode = 0x50;
+        int cycles = (!initialOverflow) ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagOverflow(initialOverflow)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialOverflow, branchOffset, expectedPC (hex)
+            "true, 5, 0x8007",   // Overflow set => branch taken: 0x8002 + 5 = 0x8007.
+            "false, 5, 0x8002",  // Overflow clear => branch not taken.
+            "true, -3, 0x7FFF",  // Overflow set => branch taken: 0x8002 - 3 = 0x7FFF.
+            "false, -3, 0x8002"  // Overflow clear => branch not taken.
+    })
+    public void BVS_Branch_Default(boolean initialOverflow, int branchOffset, int expectedPC) {
+        final int opcode = 0x70;
+        int cycles = (initialOverflow) ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagOverflow(initialOverflow)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // With reset vector 0x80F0, after fetching, PC becomes 0x80F2.
+            // If branch is taken with an offset of +20 and page crossing occurs, target = 0x80F2 + 20 = 0x8106.
+            "true, 20, 0x8106",   // Overflow set => branch taken with page crossing (4 cycles).
+            "false, 20, 0x80F2"    // Overflow clear => branch not taken.
+    })
+    public void BVS_Branch_PageCrossing(boolean initialOverflow, int branchOffset, int expectedPC) {
+        final int opcode = 0x70;
+        int cycles = (initialOverflow) ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagOverflow(initialOverflow)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
 }

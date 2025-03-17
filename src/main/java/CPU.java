@@ -278,6 +278,8 @@ public class CPU {
             case 0x30 -> loadInstructionInitialState(4, Instruction.BMI, AddressingMode.REL);
             case 0xD0 -> loadInstructionInitialState(4, Instruction.BNE, AddressingMode.REL);
             case 0x10 -> loadInstructionInitialState(4, Instruction.BPL, AddressingMode.REL);
+            case 0x50 -> loadInstructionInitialState(4, Instruction.BVC, AddressingMode.REL);
+            case 0x70 -> loadInstructionInitialState(4, Instruction.BVS, AddressingMode.REL);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -329,6 +331,8 @@ public class CPU {
             case BMI -> BMI();
             case BNE -> BNE();
             case BPL -> BPL();
+            case BVC -> BVC();
+            case BVS -> BVS();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -835,6 +839,14 @@ public class CPU {
 
     private void BPL() {
         handleRelativeInstructions(negative);
+    }
+
+    private void BVC() {
+        handleRelativeInstructions(overflow);
+    }
+
+    private void BVS() {
+        handleRelativeInstructions(!overflow);
     }
 
     private void handleRelativeInstructions(boolean branchNotTakenCondition) {
