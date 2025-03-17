@@ -1,5 +1,6 @@
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class CPU {
 
@@ -811,55 +812,31 @@ public class CPU {
     }
 
     private void BCC() {
-        Runnable operation = () -> {
-            if (carry) {
-                remainingCycles -= 2;
-            }
-        };
-        handleRelativeInstructions(operation);
+        handleRelativeInstructions(carry);
     }
 
     private void BCS() {
-        Runnable operation = () -> {
-            if (!carry) {
-                remainingCycles -= 2;
-            }
-        };
-        handleRelativeInstructions(operation);
+        handleRelativeInstructions(!carry);
     }
 
     private void BEQ() {
-        Runnable operation = () -> {
-            if (!zero) {
-                remainingCycles -= 2;
-            }
-        };
-        handleRelativeInstructions(operation);
+        handleRelativeInstructions(!zero);
     }
 
     private void BMI() {
-        Runnable operation = () -> {
-            if (!negative) {
-                remainingCycles -= 2;
-            }
-        };
-        handleRelativeInstructions(operation);
+        handleRelativeInstructions(!negative);
     }
 
     private void BNE() {
-        Runnable operation = () -> {
-            if (zero) {
-                remainingCycles -= 2;
-            }
-        };
-        handleRelativeInstructions(operation);
+        handleRelativeInstructions(zero);
     }
 
-    private void handleRelativeInstructions(Runnable operation) {
+    private void handleRelativeInstructions(boolean branchNotTakenCondition) {
         switch (remainingCycles) {
             case 3 -> {
                 currInstruction.operand = fetch();
-                operation.run();
+                if(branchNotTakenCondition)
+                    remainingCycles -= 2;
             }
             case 2 -> {
                 int oldPC = pc;
