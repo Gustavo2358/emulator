@@ -40,5 +40,6 @@ public enum Instruction {
     CPY,
     BCC,
     BCS,
-    BEQ
+    BEQ,
+    BMI
 }

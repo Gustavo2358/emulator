@@ -270,10 +270,11 @@ public class CPU {
             case 0xC0 -> loadInstructionInitialState(2, Instruction.CPY, AddressingMode.IMM);
             case 0xC4 -> loadInstructionInitialState(3, Instruction.CPY, AddressingMode.ZPG);
             case 0xCC -> loadInstructionInitialState(4, Instruction.CPY, AddressingMode.ABS);
-            // BCC opcode:
+            // Branch instructions opcode:
             case 0x90 -> loadInstructionInitialState(4, Instruction.BCC, AddressingMode.REL);
             case 0xB0 -> loadInstructionInitialState(4, Instruction.BCS, AddressingMode.REL);
             case 0xF0 -> loadInstructionInitialState(4, Instruction.BEQ, AddressingMode.REL);
+            case 0x30 -> loadInstructionInitialState(4, Instruction.BMI, AddressingMode.REL);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -322,6 +323,7 @@ public class CPU {
             case BCC -> BCC();
             case BCS -> BCS();
             case BEQ -> BEQ();
+            case BMI -> BMI();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -827,6 +829,15 @@ public class CPU {
     private void BEQ() {
         Runnable operation = () -> {
             if (!zero) {
+                remainingCycles -= 2;
+            }
+        };
+        handleRelativeInstructions(operation);
+    }
+
+    private void BMI() {
+        Runnable operation = () -> {
+            if (!negative) {
                 remainingCycles -= 2;
             }
         };

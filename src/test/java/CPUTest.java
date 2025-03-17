@@ -3375,4 +3375,43 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(expectedPC, state.getPc());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialNegative, branchOffset, expectedPC (hex)
+            "true, 5, 0x8007",   // Negative flag set => branch taken: 0x8002 + 5 = 0x8007.
+            "false, 5, 0x8002",  // Negative flag clear => branch not taken.
+            "true, -3, 0x7FFF",  // Negative flag set => branch taken: 0x8002 - 3 = 0x7FFF.
+            "false, -3, 0x8002"  // Negative flag clear => branch not taken.
+    })
+    public void BMI_Branch_Default(boolean initialNegative, int branchOffset, int expectedPC) {
+        final int opcode = 0x30;
+        int cycles = initialNegative ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagNegative(initialNegative)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // Using a reset vector of 0x80F0, after fetching the branch instruction, PC becomes 0x80F2.
+            // If the Negative flag is set and the branch offset is +20, then the target is 0x80F2 + 20 = 0x8106.
+            "true, 20, 0x8106",  // Negative set => branch taken with page crossing.
+            "false, 20, 0x80F2"   // Negative clear => branch not taken.
+    })
+    public void BMI_Branch_PageCrossing(boolean initialNegative, int branchOffset, int expectedPC) {
+        final int opcode = 0x30;
+        int cycles = initialNegative ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagNegative(initialNegative)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
 }
