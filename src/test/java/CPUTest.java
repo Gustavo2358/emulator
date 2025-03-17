@@ -3257,15 +3257,6 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
     }
 
-    // ---------------------- BCC Instruction Tests ----------------------
-    /*
-     * BCC (Branch if Carry Clear) tests:
-     * - If the Carry flag is clear, the branch is taken.
-     * - The branch offset is relative to the PC after fetching the branch instruction (PC + 2).
-     * - For example, with a reset vector of 0x8000, the PC becomes 0x8000, the branch opcode and offset are fetched,
-     *   and then PC becomes 0x8002. If branch is taken with an offset of +5, then target = 0x8002 + 5 = 0x8007.
-     */
-
     @ParameterizedTest
     @CsvSource({
             // initialCarry, branchOffset, expectedPC (hex)
@@ -3346,4 +3337,42 @@ class CPUTest {
         assertEquals(expectedPC, state.getPc());
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            // initialZero, branchOffset, expectedPC (hex)
+            "true, 5, 0x8007",   // Zero set => branch taken: 0x8002 + 5 = 0x8007.
+            "false, 5, 0x8002",  // Zero clear => branch not taken.
+            "true, -3, 0x7FFF",  // Zero set => branch taken: 0x8002 - 3 = 0x7FFF.
+            "false, -3, 0x8002"  // Zero clear => branch not taken.
+    })
+    public void BEQ_Branch_Default(boolean initialZero, int branchOffset, int expectedPC) {
+        final int opcode = 0xF0;
+        int cycles = initialZero ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagZero(initialZero)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // With reset vector 0x80F0, after fetching the branch, PC becomes 0x80F2.
+            // If branch is taken with an offset of +20 and page crossing occurs, target = 0x80F2 + 20 = 0x8106.
+            "true, 20, 0x8106",  // Zero set => branch taken with page crossing (4 cycles)
+            "false, 20, 0x80F2"   // Zero clear => branch not taken (2 cycles)
+    })
+    public void BEQ_Branch_PageCrossing(boolean initialZero, int branchOffset, int expectedPC) {
+        final int opcode = 0xF0;
+        int cycles = initialZero ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagZero(initialZero)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
 }

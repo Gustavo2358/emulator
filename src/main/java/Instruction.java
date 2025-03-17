@@ -39,5 +39,6 @@ public enum Instruction {
     CPX,
     CPY,
     BCC,
-    BCS
+    BCS,
+    BEQ
 }
