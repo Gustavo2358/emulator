@@ -3304,4 +3304,46 @@ class CPUTest {
         assertEquals(expectedPC, state.getPc());
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            // initialCarry, branchOffset, expectedPC (hex)
+            // With reset vector 0x8000, PC after fetching branch opcode & offset is 0x8002.
+            // For BCS: if carry is set then branch is taken.
+            "true, 5, 0x8007",   // Branch taken: 0x8002 + 5 = 0x8007.
+            "false, 5, 0x8002",  // Not taken: PC remains 0x8002.
+            "true, -3, 0x7FFF",  // Branch taken: 0x8002 - 3 = 0x7FFF.
+            "false, -3, 0x8002"  // Not taken.
+    })
+    public void BCS_Branch_Default(boolean initialCarry, int branchOffset, int expectedPC) {
+        final int opcode = 0xB0;
+        int cycles = initialCarry ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // Using a reset vector near the end of a page, e.g. 0x80F0.
+            // After fetching the branch instruction, PC becomes 0x80F2.
+            // If branch is taken and page crossing occurs, the target is PC+offset with an extra cycle.
+            "true, 20, 0x8106",  // Carry set => branch taken: 0x80F2 + 20 = 0x8106.
+            "false, 20, 0x80F2"  // Not taken: PC remains 0x80F2.
+    })
+    public void BCS_Branch_PageCrossing(boolean initialCarry, int branchOffset, int expectedPC) {
+        final int opcode = 0xB0;
+        int cycles = initialCarry ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
 }
