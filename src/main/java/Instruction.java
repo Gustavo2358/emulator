@@ -41,5 +41,6 @@ public enum Instruction {
     BCC,
     BCS,
     BEQ,
-    BMI
+    BMI,
+    BNE
 }

@@ -3414,4 +3414,43 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(expectedPC, state.getPc());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            // initialZero, branchOffset, expectedPC (hex)
+            "false, 5, 0x8007",   // Zero clear => branch taken: 0x8002 + 5 = 0x8007.
+            "true, 5, 0x8002",    // Zero set => branch not taken, PC remains 0x8002.
+            "false, -3, 0x7FFF",  // Zero clear => branch taken: 0x8002 - 3 = 0x7FFF.
+            "true, -3, 0x8002"    // Zero set => branch not taken.
+    })
+    public void BNE_Branch_Default(boolean initialZero, int branchOffset, int expectedPC) {
+        final int opcode = 0xD0;
+        int cycles = (!initialZero) ? 3 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withFlagZero(initialZero)
+                .withInstruction(0x8000, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // Using a reset vector near the end of a page: after fetching, PC becomes 0x80F2.
+            // If branch is taken with an offset of +20, target = 0x80F2 + 20 = 0x8106.
+            "false, 20, 0x8106",  // Zero clear => branch taken (with page crossing): 4 cycles.
+            "true, 20, 0x80F2"     // Zero set => branch not taken, PC remains 0x80F2.
+    })
+    public void BNE_Branch_PageCrossing(boolean initialZero, int branchOffset, int expectedPC) {
+        final int opcode = 0xD0;
+        int cycles = (!initialZero) ? 4 : 2;
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(0x80F0)
+                .withFlagZero(initialZero)
+                .withInstruction(0x80F0, opcode, branchOffset)
+                .buildAndRun(cycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+    }
 }
