@@ -3570,4 +3570,45 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(expectedPC, state.getPc());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0x00, 0x90, 0x9000",  // Jump to 0x9000 when low byte = 0x00, high = 0x90.
+            "0x34, 0x12, 0x1234"   // Jump to 0x1234 when low byte = 0x34, high = 0x12.
+    })
+    public void JMP_Absolute(int low, int high, int expectedAddress) {
+        final int opcode = 0x4C; // JMP Absolute opcode
+        int startAddress = 0x8000; // Where the instruction is placed.
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withInstruction(startAddress, opcode, low, high)
+                .buildAndRun(3, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expectedAddress, state.getPc());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // Normal indirect jump cases: pointer address is 0x1000.
+//            "0x1000, 0x00, 0x90, 0x9000",  // Memory at 0x1000 holds 0x00, at 0x1001 holds 0x90.
+//            "0x1000, 0x34, 0x12, 0x1234",  // Memory at 0x1000 holds 0x34, at 0x1001 holds 0x12.
+            // Bug case: pointer address is 0x10FF. Due to the 6502 bug, the high byte is read from 0x1000.
+            "0x10FF, 0xEF, 0xBE, 0xBEEF"   // Memory at 0x10FF holds 0xEF, and memory at 0x1000 holds 0xBE.
+    })
+    public void JMP_Indirect(int pointerAddress, int pointerLow, int pointerHigh, int expectedAddress) {
+        final int opcode = 0x6C;
+        int startAddress = 0x8000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withInstruction(startAddress, opcode, pointerAddress & 0xFF, (pointerAddress >> 8) & 0xFF)
+                .withMemoryValue(pointerAddress, pointerLow)
+                // For the high byte, if pointer low byte is 0xFF (bug condition),
+                // write it to the wrapped-around address (pointerAddress & 0xFF00); otherwise, use pointerAddress + 1.
+                .withMemoryValue(((pointerAddress & 0xFF) == 0xFF) ? (pointerAddress & 0xFF00) : (pointerAddress + 1), pointerHigh)
+                .buildAndRun(5, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expectedAddress, state.getPc());
+    }
 }

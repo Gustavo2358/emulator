@@ -280,6 +280,9 @@ public class CPU {
             case 0x10 -> loadInstructionInitialState(4, Instruction.BPL, AddressingMode.REL);
             case 0x50 -> loadInstructionInitialState(4, Instruction.BVC, AddressingMode.REL);
             case 0x70 -> loadInstructionInitialState(4, Instruction.BVS, AddressingMode.REL);
+            //JMP opcodes
+            case 0x4C -> loadInstructionInitialState(3, Instruction.JMP, AddressingMode.ABS);
+            case 0x6C -> loadInstructionInitialState(5, Instruction.JMP, AddressingMode.IND);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -333,6 +336,7 @@ public class CPU {
             case BPL -> BPL();
             case BVC -> BVC();
             case BVS -> BVS();
+            case JMP -> JMP();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -847,6 +851,34 @@ public class CPU {
 
     private void BVS() {
         handleRelativeInstructions(!overflow);
+    }
+
+    private void JMP() {
+        switch (currInstruction.addressingMode){
+            case ABS -> {
+                switch (remainingCycles){
+                    case 2 -> currInstruction.effectiveAddress = fetch();
+                    case 1 -> {
+                        currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
+                        pc = currInstruction.effectiveAddress;
+                    }
+                }
+            }
+            case IND -> {
+                switch (remainingCycles) {
+                    case 4 -> currInstruction.operand = fetch();
+                    case 3 -> currInstruction.operand = (fetch() << 8) | currInstruction.operand;
+                    case 2 -> currInstruction.effectiveAddress = read(currInstruction.operand) & 0xFF;
+                    case 1 -> {
+                        int pointerHighAddress = ((currInstruction.operand & 0xFF) == 0xFF)
+                                ? (currInstruction.operand & 0xFF00)
+                                : (currInstruction.operand + 1);
+                        currInstruction.effectiveAddress = (read(pointerHighAddress) & 0xFF) << 8 | currInstruction.effectiveAddress;
+                        pc = currInstruction.effectiveAddress;
+                    }
+                }
+            }
+        }
     }
 
     private void handleRelativeInstructions(boolean branchNotTakenCondition) {

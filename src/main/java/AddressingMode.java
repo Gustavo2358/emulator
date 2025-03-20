@@ -6,6 +6,7 @@ public enum AddressingMode {
     ABS,
     ABS_X,
     ABS_Y,
+    IND,
     IND_X, //(indirect,X)
     IND_Y, //(indirect),Y
     IMP,
