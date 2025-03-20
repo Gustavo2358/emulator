@@ -46,5 +46,7 @@ public enum Instruction {
     BPL,
     BVC,
     BVS,
-    JMP
+    JMP,
+    RTS,
+    JSR
 }

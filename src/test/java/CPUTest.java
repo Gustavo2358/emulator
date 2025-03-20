@@ -1004,12 +1004,12 @@ class CPUTest {
         CPU cpu = builder.buildAndRun(instructionCycles);
 
         // Determine expected flag booleans from the pulled value:
-        boolean expectedNegative         = (valueToPull & 0x80) != 0;
-        boolean expectedOverflow         = (valueToPull & 0x40) != 0;
-        boolean expectedDecimal          = (valueToPull & 0x08) != 0;
+        boolean expectedNegative = (valueToPull & 0x80) != 0;
+        boolean expectedOverflow = (valueToPull & 0x40) != 0;
+        boolean expectedDecimal = (valueToPull & 0x08) != 0;
         boolean expectedInterruptDisable = (valueToPull & 0x04) != 0;
-        boolean expectedZero             = (valueToPull & 0x02) != 0;
-        boolean expectedCarry            = (valueToPull & 0x01) != 0;
+        boolean expectedZero = (valueToPull & 0x02) != 0;
+        boolean expectedCarry = (valueToPull & 0x01) != 0;
 
         assertEquals(expectedNegative, cpu.getState().isNegative());
         assertEquals(expectedOverflow, cpu.getState().isOverflow());
@@ -1025,11 +1025,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
-        "1, 0, true, false",      // 1 - 1 = 0, zero flag set
-        "2, 1, false, false",     // 2 - 1 = 1, no flag set
-        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
-        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0, zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1, no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
     })
     public void DEC_ZeroPage(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 5;
@@ -1053,11 +1053,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
-        "1, 0, true, false",      // 1 - 1 = 0, zero flag set
-        "2, 1, false, false",     // 2 - 1 = 1, no flag set
-        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
-        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF), negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0, zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1, no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F), zero flag clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE), negative flag set
     })
     public void DEC_ZeroPageX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 6;
@@ -1085,11 +1085,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
-        "1, 0, true, false",      // 1 - 1 = 0; zero flag set
-        "2, 1, false, false",     // 2 - 1 = 1; no flag set
-        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
-        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0; zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1; no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
     })
     public void DEC_Absolute(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 6;
@@ -1113,11 +1113,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-        "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
-        "1, 0, true, false",      // 1 - 1 = 0; zero flag set
-        "2, 1, false, false",     // 2 - 1 = 1; no flag set
-        "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
-        "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+            "0, 255, false, true",    // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+            "1, 0, true, false",      // 1 - 1 = 0; zero flag set
+            "2, 1, false, false",     // 2 - 1 = 1; no flag set
+            "128, 127, false, false", // 128 (0x80) - 1 = 127 (0x7F); zero clear, negative clear
+            "255, 254, false, true"   // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
     })
     public void DEC_AbsoluteX(int initialValue, int expectedValue, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 7;
@@ -1146,11 +1146,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-        "0, 255, false, true",   // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
-        "1, 0, true, false",     // 1 - 1 = 0; zero flag set
-        "2, 1, false, false",    // 2 - 1 = 1; no flag set
-        "128, 127, false, false",// 128 (0x80) - 1 = 127 (0x7F); negative flag clear
-        "255, 254, false, true"  // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+            "0, 255, false, true",   // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+            "1, 0, true, false",     // 1 - 1 = 0; zero flag set
+            "2, 1, false, false",    // 2 - 1 = 1; no flag set
+            "128, 127, false, false",// 128 (0x80) - 1 = 127 (0x7F); negative flag clear
+            "255, 254, false, true"  // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
     })
     public void DEX(int initialX, int expectedX, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 2;
@@ -1171,11 +1171,11 @@ class CPUTest {
 
     @ParameterizedTest
     @CsvSource({
-        "0, 255, false, true",   // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
-        "1, 0, true, false",     // 1 - 1 = 0; zero flag set
-        "2, 1, false, false",    // 2 - 1 = 1; no flag set
-        "128, 127, false, false",// 128 (0x80) - 1 = 127 (0x7F); negative flag clear
-        "255, 254, false, true"  // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
+            "0, 255, false, true",   // 0 - 1 wraps to 255 (0xFF); negative flag set (bit 7 = 1)
+            "1, 0, true, false",     // 1 - 1 = 0; zero flag set
+            "2, 1, false, false",    // 2 - 1 = 1; no flag set
+            "128, 127, false, false",// 128 (0x80) - 1 = 127 (0x7F); negative flag clear
+            "255, 254, false, true"  // 255 (0xFF) - 1 = 254 (0xFE); negative flag set
     })
     public void DEY(int initialY, int expectedY, boolean expectedZero, boolean expectedNegative) {
         final int instructionCycles = 2;
@@ -3611,4 +3611,75 @@ class CPUTest {
         CpuState state = cpu.getState();
         assertEquals(expectedAddress, state.getPc());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0x00, 0x90, 0x9001",   // When stack holds 0x9000, RTS returns 0x9001.
+            "0x34, 0x12, 0x1235",   // When stack holds 0x1234, RTS returns 0x1235.
+            "0xFF, 0xFF, 0x0000"    // When stack holds 0xFFFF, RTS returns 0x0000 (wrap-around).
+    })
+    public void RTS(int stackLow, int stackHigh, int expectedAddress) {
+        final int opcode = 0x60;
+        int startAddress = 0x8000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withStackPointer(0xFD)
+                .withInstruction(startAddress, opcode)
+                .withMemoryValue(0x01FE, stackLow)
+                .withMemoryValue(0x01FF, stackHigh)
+                .buildAndRun(6, bus);
+        CpuState state = cpu.getState();
+        assertEquals(expectedAddress, state.getPc());
+
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            // For a JSR at 0x8000, the return address pushed should always be 0x8002 (high: 0x80, low: 0x02) regardless of the target.
+            "0x9000, 0x9000, 0x80, 0x02",
+            "0x1234, 0x1234, 0x80, 0x02"
+    })
+    public void JSR(int targetAddress, int expectedPC, int expectedPushedHigh, int expectedPushedLow) {
+        final int opcode = 0x20;
+        int startAddress = 0x8000;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withStackPointer(0xFF)
+                .withInstruction(startAddress, opcode, targetAddress & 0xFF, (targetAddress >> 8) & 0xFF)
+                .buildAndRun(6, bus);
+
+        CpuState state = cpu.getState();
+        assertEquals(expectedPC, state.getPc());
+        // Verify that the return address (PC - 1, which is startAddress + 2) was pushed onto the stack.
+        // With an initial SP of 0xFF, JSR pushes two bytes:
+        //   - First, the high byte is pushed at address 0x01FF.
+        //   - Then, the low byte is pushed at address 0x01FE.
+        assertEquals(expectedPushedHigh, bus.read(0x0100 | 0xFF) & 0xFF);
+        assertEquals(expectedPushedLow, bus.read(0x0100 | 0xFE) & 0xFF);
+        assertEquals(0xFD, state.getSp());
+    }
+
+    @Test
+    public void testJSR_RTS() {
+        final int jsrOpcode = 0x20;
+        final int rtsOpcode = 0x60;
+        int startAddress = 0x8000;
+        int subroutineAddress = 0x9000;
+        int initialStackPointer = 0xFF;
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withStackPointer(initialStackPointer)
+                .withInstruction(startAddress, jsrOpcode, subroutineAddress & 0xFF, (subroutineAddress >> 8) & 0xFF)
+                .withInstruction(subroutineAddress, rtsOpcode)
+                .buildAndRun(12, bus);
+
+        CpuState state = cpu.getState();
+
+        assertEquals(startAddress + 3, state.getPc());
+        assertEquals(initialStackPointer, state.getSp());
+    }
+
 }

@@ -1,6 +1,5 @@
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class CPU {
 
@@ -283,6 +282,10 @@ public class CPU {
             //JMP opcodes
             case 0x4C -> loadInstructionInitialState(3, Instruction.JMP, AddressingMode.ABS);
             case 0x6C -> loadInstructionInitialState(5, Instruction.JMP, AddressingMode.IND);
+            //JSR opcode
+            case 0x20 -> loadInstructionInitialState(6, Instruction.JSR, AddressingMode.ABS);
+            //RTS opcode:
+            case 0x60 -> loadInstructionInitialState(6, Instruction.RTS, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -337,6 +340,8 @@ public class CPU {
             case BVC -> BVC();
             case BVS -> BVS();
             case JMP -> JMP();
+            case RTS -> RTS();
+            case JSR -> JSR();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -878,6 +883,39 @@ public class CPU {
                     }
                 }
             }
+        }
+    }
+
+    private void RTS() {
+        switch (remainingCycles) {
+            case 5 -> { /*Dummy read*/ }
+            case 4 -> sp.increment();
+            case 3 -> {
+                pc = read(0x100 | sp.getValue()) & 0xFF;
+                sp.increment();
+            }
+            case 2 -> {
+                int pch = read(0x100 | sp.getValue()) & 0xFF;
+                pc = (pch << 8) & 0xFF00 | pc;
+            }
+            case 1 -> pc = (pc + 1) % 0x10000;
+        }
+    }
+
+    private void JSR() {
+        switch (remainingCycles) {
+            case 5 -> currInstruction.effectiveAddress = fetch();
+            case 4 -> currInstruction.effectiveAddress = (fetch() << 8 | currInstruction.effectiveAddress) & 0xFFFF;
+            case 3 -> {
+                --pc;
+                write(0x100 | sp.getValue(),(pc >> 8) & 0xFF);
+                sp.decrement();
+            }
+            case 2 -> {
+                write(0x100 | sp.getValue(),pc & 0xFF);
+                sp.decrement();
+            }
+            case 1 -> pc = currInstruction.effectiveAddress;
         }
     }
 
