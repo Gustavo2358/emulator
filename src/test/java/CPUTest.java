@@ -3744,5 +3744,20 @@ class CPUTest {
         assertEquals(0xFF, state.getSp());
     }
 
+    @Test
+    public void testNOP() {
+        final int nopOpcode = 0xEA; // NOP opcode
+        int startAddress = 0x8000;
+        Bus bus = new MockBus();
+
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withInstruction(startAddress, nopOpcode)
+                .buildAndRun(2, bus);
+
+        CpuState state = cpu.getState();
+
+        assertEquals(startAddress + 1, state.getPc());
+    }
 
 }

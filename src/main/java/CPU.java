@@ -290,6 +290,9 @@ public class CPU {
             case 0x00 -> loadInstructionInitialState(7,Instruction.BRK, AddressingMode.IMP);
             //RTI opcode:
             case 0x40 -> loadInstructionInitialState(6, Instruction.RTI, AddressingMode.IMP);
+            //NOP opcode:
+            case 0xEA -> loadInstructionInitialState(2, Instruction.NOP, AddressingMode.IMP);
+
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -348,6 +351,7 @@ public class CPU {
             case JSR -> JSR();
             case BRK -> BRK();
             case RTI -> RTI();
+            case NOP -> NOP();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -980,6 +984,14 @@ public class CPU {
             case 1 -> {
                 int pch = read(0x0100 | sp.getValue()) & 0xFF;
                 pc = (pch << 8) | currInstruction.effectiveAddress;
+            }
+        }
+    }
+
+    private void NOP() {
+        switch (remainingCycles) {
+            case 1 -> {
+                // NOP
             }
         }
     }
