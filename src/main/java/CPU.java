@@ -496,12 +496,12 @@ public class CPU {
 
     // Converts the current CPU flags into an 8-bit representation.
     // Bit layout: N V 1 B D I Z C
-    private int flagsToBits() {
+    private int flagsToBits(boolean bflag) {
         int flags = 0;
         if (negative) flags |= 0x80;
         if (overflow) flags |= 0x40;
         flags |= 0x20;
-        flags |= 0x10;
+        if (bflag) flags |= 0x10;
         if (decimal) flags |= 0x08;
         if (interruptDisable) flags |= 0x04;
         if (zero) flags |= 0x02;
@@ -511,7 +511,7 @@ public class CPU {
 
     private void PHP() {
         switch (remainingCycles) {
-            case 2 -> write(0x0100 | sp.getValue(), flagsToBits());
+            case 2 -> write(0x0100 | sp.getValue(), flagsToBits(true));
             case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
         }
     }
@@ -934,7 +934,7 @@ public class CPU {
                 sp.decrement();
             }
             case 3 -> {
-                write(0x0100 | sp.getValue(), flagsToBits());
+                write(0x0100 | sp.getValue(), flagsToBits(true));
                 sp.decrement();
             }
             case 2 -> {
