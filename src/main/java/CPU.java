@@ -288,6 +288,8 @@ public class CPU {
             case 0x60 -> loadInstructionInitialState(6, Instruction.RTS, AddressingMode.IMP);
             //BRK opcode:
             case 0x00 -> loadInstructionInitialState(7,Instruction.BRK, AddressingMode.IMP);
+            //RTI opcode:
+            case 0x40 -> loadInstructionInitialState(6, Instruction.RTI, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -345,6 +347,7 @@ public class CPU {
             case RTS -> RTS();
             case JSR -> JSR();
             case BRK -> BRK();
+            case RTI -> RTI();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -507,6 +510,18 @@ public class CPU {
         if (zero) flags |= 0x02;
         if (carry) flags |= 0x01;
         return flags;
+    }
+
+    private void bitsToFlags(int status) {
+        // Ignore the Break flag (bit 4) and unused bit (bit 5)
+        status = status & ~(0x10 | 0x20);
+
+        negative = (status & 0x80) != 0;
+        overflow = (status & 0x40) != 0;
+        decimal = (status & 0x08) != 0;
+        interruptDisable = (status & 0x04) != 0;
+        zero = (status & 0x02) != 0;
+        carry = (status & 0x01) != 0;
     }
 
     private void PHP() {
@@ -944,6 +959,27 @@ public class CPU {
                 int pch = read(0xFFFF) & 0xFF;
                 pc = (pch << 8) | currInstruction.effectiveAddress;
                 interruptDisable = true;
+            }
+        }
+    }
+
+    private void RTI() {
+        switch (remainingCycles) {
+            case 5 -> fetch();
+            case 4 ->  sp.increment();
+            case 3 -> {
+                int pulledStatus = read(0x0100 | sp.getValue()) & 0xFF;
+                sp.increment();
+                bitsToFlags(pulledStatus);
+            }
+            case 2 -> {
+                int pcl = read(0x0100 | sp.getValue()) & 0xFF;
+                sp.increment();
+                currInstruction.effectiveAddress = pcl;
+            }
+            case 1 -> {
+                int pch = read(0x0100 | sp.getValue()) & 0xFF;
+                pc = (pch << 8) | currInstruction.effectiveAddress;
             }
         }
     }

@@ -3714,4 +3714,35 @@ class CPUTest {
         assertEquals(expectedStatusPushed, bus.read(0x0100 | 0xFD) & 0xFF);
     }
 
+    @Test
+    public void testRTI() {
+        final int rtiOpcode = 0x40;
+        int startAddress = 0x8000;
+        int returnAddress = 0x1234;
+        int pushedStatus = 0xF0;
+        int initialSP = 0xFC;
+
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withInstruction(startAddress, rtiOpcode)
+                .withStackPointer(initialSP)
+                .withMemoryValue(0x0100 | 0xFD, pushedStatus)
+                .withMemoryValue(0x0100 | 0xFE, returnAddress & 0xFF)
+                .withMemoryValue(0x0100 | 0xFF, (returnAddress >> 8) & 0xFF)
+                .buildAndRun(6, bus);
+
+        CpuState state = cpu.getState();
+
+        assertEquals(returnAddress, state.getPc());
+        assertTrue(state.isNegative());
+        assertTrue(state.isOverflow());
+        assertFalse(state.isDecimal());
+        assertFalse(state.isInterruptDisable());
+        assertFalse(state.isZero());
+        assertFalse(state.isCarry());
+        assertEquals(0xFF, state.getSp());
+    }
+
+
 }
