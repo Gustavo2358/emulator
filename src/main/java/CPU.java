@@ -286,6 +286,8 @@ public class CPU {
             case 0x20 -> loadInstructionInitialState(6, Instruction.JSR, AddressingMode.ABS);
             //RTS opcode:
             case 0x60 -> loadInstructionInitialState(6, Instruction.RTS, AddressingMode.IMP);
+            //BRK opcode:
+            case 0x00 -> loadInstructionInitialState(7,Instruction.BRK, AddressingMode.IMP);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -342,6 +344,7 @@ public class CPU {
             case JMP -> JMP();
             case RTS -> RTS();
             case JSR -> JSR();
+            case BRK -> BRK();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -916,6 +919,32 @@ public class CPU {
                 sp.decrement();
             }
             case 1 -> pc = currInstruction.effectiveAddress;
+        }
+    }
+
+    private void BRK() {
+        switch (remainingCycles) {
+            case 6 -> fetch();
+            case 5 -> {
+                write(0x0100 | sp.getValue(), (pc >> 8) & 0xFF);
+                sp.decrement();
+            }
+            case 4 -> {
+                write(0x0100 | sp.getValue(), pc & 0xFF);
+                sp.decrement();
+            }
+            case 3 -> {
+                write(0x0100 | sp.getValue(), flagsToBits());
+                sp.decrement();
+            }
+            case 2 -> {
+                currInstruction.effectiveAddress = read(0xFFFE) & 0xFF;
+            }
+            case 1 -> {
+                int pch = read(0xFFFF) & 0xFF;
+                pc = (pch << 8) | currInstruction.effectiveAddress;
+                interruptDisable = true;
+            }
         }
     }
 

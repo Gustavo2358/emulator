@@ -3682,4 +3682,36 @@ class CPUTest {
         assertEquals(initialStackPointer, state.getSp());
     }
 
+    @Test
+    public void testBRK() {
+        final int brkOpcode = 0x00;
+        int startAddress = 0x8000;
+        int interruptVector = 0x9000;
+        int returnAddress = startAddress + 2;
+        int expectedStatusPushed = 0x30;
+
+        Bus bus = new MockBus();
+        CPU cpu = new CPUTestBuilder()
+                .withResetVector(startAddress)
+                .withStackPointer(0xFF)
+                .withInstruction(startAddress, brkOpcode)
+                .withFlagNegative(false)
+                .withFlagZero(false)
+                .withFlagCarry(false)
+                .withFlagInterruptDisable(false)
+                .withFlagDecimal(false)
+                .withFlagOverflow(false)
+                .withMemoryValue(0xFFFE, interruptVector & 0xFF)
+                .withMemoryValue(0xFFFF, (interruptVector >> 8) & 0xFF)
+                .buildAndRun(7, bus);
+
+        CpuState state = cpu.getState();
+
+        assertEquals(interruptVector, state.getPc());
+        assertEquals(0xFC, state.getSp());
+        assertEquals((returnAddress >> 8) & 0xFF, bus.read(0x0100 | 0xFF) & 0xFF);
+        assertEquals(returnAddress & 0xFF, bus.read(0x0100 | 0xFE) & 0xFF);
+        assertEquals(expectedStatusPushed, bus.read(0x0100 | 0xFD) & 0xFF);
+    }
+
 }
