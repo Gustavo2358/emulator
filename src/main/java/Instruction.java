@@ -51,5 +51,6 @@ public enum Instruction {
     JSR,
     BRK,
     RTI,
-    NOP
+    NOP,
+    ADC
 }

@@ -292,7 +292,15 @@ public class CPU {
             case 0x40 -> loadInstructionInitialState(6, Instruction.RTI, AddressingMode.IMP);
             //NOP opcode:
             case 0xEA -> loadInstructionInitialState(2, Instruction.NOP, AddressingMode.IMP);
-
+            //ADC opcodes
+            case 0x69 -> loadInstructionInitialState(2, Instruction.ADC, AddressingMode.IMM);
+            case 0x65 -> loadInstructionInitialState(3, Instruction.ADC, AddressingMode.ZPG);
+            case 0x75 -> loadInstructionInitialState(4, Instruction.ADC, AddressingMode.ZPG_X);
+            case 0x6D -> loadInstructionInitialState(4, Instruction.ADC, AddressingMode.ABS);
+            case 0x7D -> loadInstructionInitialState(5, Instruction.ADC, AddressingMode.ABS_X);
+            case 0x79 -> loadInstructionInitialState(5, Instruction.ADC, AddressingMode.ABS_Y);
+            case 0x61 -> loadInstructionInitialState(6, Instruction.ADC, AddressingMode.IND_X);
+            case 0x71 -> loadInstructionInitialState(6, Instruction.ADC, AddressingMode.IND_Y);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -352,6 +360,7 @@ public class CPU {
             case BRK -> BRK();
             case RTI -> RTI();
             case NOP -> NOP();
+            case ADC -> ADC();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -994,6 +1003,35 @@ public class CPU {
                 // NOP
             }
         }
+    }
+
+    private void ADC() {
+        Function<Integer, Integer> op = (fetched) -> {
+            currInstruction.operand = fetched;
+            currInstruction.tempLatch = a.getValue() + fetched + (carry ? 1 : 0);
+            setADCFlags();
+            return currInstruction.tempLatch;
+        };
+        switch (currInstruction.addressingMode) {
+            case IMM -> {
+                int fetched = fetch();
+                a.setValue(op.apply(fetched));
+            }
+            case ZPG -> handleRead_ZeroPageMode(a, op);
+            case ZPG_X -> handleRead_ZeroPageIndexed(a, x, op);
+            case ABS -> handleRead_AbsoluteMode(a, op);
+            case ABS_X -> handleRead_AbsoluteIndexed(a, x, op);
+            case ABS_Y -> handleRead_AbsoluteIndexed(a, y, op);
+            case IND_X -> handleRead_IndirectXIndexed(a, op);
+            case IND_Y -> handleRead_IndirectYIndexed(a, op);
+        }
+    }
+
+    private void setADCFlags() {
+        carry = currInstruction.tempLatch > 0xFF;
+        zero = (currInstruction.tempLatch & 0xFF) == 0;
+        negative = (currInstruction.tempLatch & 0x80) != 0;
+        overflow = (((~a.getValue() ^ currInstruction.operand) & (a.getValue() ^ currInstruction.tempLatch)) & 0x80) != 0;
     }
 
     private void handleRelativeInstructions(boolean branchNotTakenCondition) {

@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+
 class CPUTest {
 
     @ParameterizedTest
@@ -3760,4 +3761,340 @@ class CPUTest {
         assertEquals(startAddress + 1, state.getPc());
     }
 
+    private static Stream<Arguments> provideADCArguments() {
+        // initialA, operand, initialCarry, expectedA, expectedCarry, expectedZero, expectedNegative, expectedOverflow
+        return Stream.of(
+                // Simple addition: 0x14 (20) + 0x28 (40) = 0x3C (60)
+                Arguments.of(0x14, 0x28, false, (0x14 + 0x28) & 0xFF, false, false, false, false),
+                // Overflow: 0x70 (112) + 0x70 (112) = 0xE0 (224) -> overflow expected (sign change from positive to negative)
+                Arguments.of(0x70, 0x70, false, (0x70 + 0x70) & 0xFF, false, false, true, true),
+                // Overflow: 0x90 (-112) + 0x90 (-112) = 0x20 (32) -> overflow expected (sign change from negative to positive)
+                Arguments.of(0x90, 0x90, false, (0x90 + 0x90) & 0xFF, true, false, false, true),
+                // With initial carry: 0x14 + 0x28 + 1 = 0x3D (61)
+                Arguments.of(0x14, 0x28, true, (0x14 + 0x28 + 1) & 0xFF, false, false, false, false),
+                // Carry out: 0xFF (255) + 0x02 (2) = 0x01 with carry (since 0x101 > 0xFF)
+                Arguments.of(0xFF, 0x02, false, (0xFF + 0x02) & 0xFF, true, false, false, false)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_Immediate_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 2;
+        int opcode = 0x69;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_ZeroPage_Flags(int initialA, int operand, boolean initialCarry,
+                                   int expectedA, boolean expectedCarry, boolean expectedZero,
+                                   boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 3;
+        int opcode = 0x65;
+        int zpAddress = 0x10;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpAddress)
+                .withMemoryValue(zpAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_ZeroPageX_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0x75;
+        int zpBase = 0x10;
+        int registerX = 0x05;
+        int effectiveAddress = (zpBase + registerX) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpBase)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_Absolute_Flags(int initialA, int operand, boolean initialCarry,
+                                   int expectedA, boolean expectedCarry, boolean expectedZero,
+                                   boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0x6D;
+        int absAddress = 0x9000;
+        int low = absAddress & 0xFF;
+        int high = (absAddress >> 8) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(absAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_AbsoluteX_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0x7D;
+        int absBase = 0x9000;
+        int registerX = 0x05;
+        int effectiveAddress = absBase + registerX;
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_AbsoluteY_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0x79;
+        int absBase = 0x9000;
+        int registerY = 0x05;
+        int effectiveAddress = absBase + registerY;
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_IndirectX_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 6;
+        int opcode = 0x61;
+        int zpBase = 0x10;
+        int registerX = 0x05;
+        int pointerAddress = (zpBase + registerX) & 0xFF;
+        int effectiveAddress = 0x9000;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpBase)
+                .withZeroPagePointer(pointerAddress, effectiveAddress & 0xFF, (effectiveAddress >> 8) & 0xFF)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideADCArguments")
+    public void ADC_IndirectY_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 5;
+        int opcode = 0x71;
+        int zpAddress = 0x10;
+        int baseAddress = 0x9000;
+        int registerY = 0x05;
+        int effectiveAddress = baseAddress + registerY;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpAddress)
+                .withZeroPagePointer(zpAddress, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    // using base address 0x90FF with X = 0x01 gives effective address 0x9100.
+    @Test
+    public void ADC_AbsoluteX_PageCrossing_Flags() {
+        final int instructionCycles = 5;
+        int opcode = 0x7D;
+        int absBase = 0x90FF; // Base address near end of page.
+        int registerX = 0x01;
+        int effectiveAddress = absBase + registerX; // 0x9100.
+
+        int initialA = 0x10;
+        int operand = 0x20;
+        boolean initialCarry = false;
+        int expectedA = (initialA + operand) & 0xFF;
+        boolean expectedCarry = false;
+        boolean expectedZero = (expectedA == 0);
+        boolean expectedNegative = (expectedA & 0x80) != 0;
+        boolean expectedOverflow = false;
+
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF; // 0x90.
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    // using base address 0x90FF with Y = 0x01 gives effective address 0x9100.
+    @Test
+    public void ADC_AbsoluteY_PageCrossing_Flags() {
+        final int instructionCycles = 5;
+        int opcode = 0x79;
+        int absBase = 0x90FF;
+        int registerY = 0x01;
+        int effectiveAddress = absBase + registerY; // 0x9100.
+
+        int initialA = 0x10;
+        int operand = 0x20;
+        boolean initialCarry = false;
+        int expectedA = (initialA + operand) & 0xFF;
+        boolean expectedCarry = false;
+        boolean expectedZero = (expectedA == 0);
+        boolean expectedNegative = (expectedA & 0x80) != 0;
+        boolean expectedOverflow = false;
+
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF; // 0x90.
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
+
+    //A zero-page pointer pointing to 0x90FF and Y = 0x01 gives effective address 0x9100.
+    @Test
+    public void ADC_IndirectY_PageCrossing_Flags() {
+        final int instructionCycles = 6;
+        int opcode = 0x71;
+        int zpAddress = 0x10;
+        int baseAddress = 0x90FF;
+        int registerY = 0x01;
+        int effectiveAddress = baseAddress + registerY; // 0x9100.
+
+        int initialA = 0x10;
+        int operand = 0x20;
+        boolean initialCarry = false;
+        int expectedA = (initialA + operand) & 0xFF;
+        boolean expectedCarry = false;
+        boolean expectedZero = (expectedA == 0);
+        boolean expectedNegative = (expectedA & 0x80) != 0;
+        boolean expectedOverflow = false;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpAddress)
+                // Set the zero-page pointer at zpAddress to point to baseAddress (0x90FF).
+                .withZeroPagePointer(zpAddress, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(effectiveAddress, operand);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA());
+        assertEquals(expectedCarry, state.isCarry());
+        assertEquals(expectedZero, state.isZero());
+        assertEquals(expectedNegative, state.isNegative());
+        assertEquals(expectedOverflow, state.isOverflow());
+    }
 }
