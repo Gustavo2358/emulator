@@ -4097,4 +4097,345 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative());
         assertEquals(expectedOverflow, state.isOverflow());
     }
+
+    private static Stream<Arguments> provideSBCArguments() {
+        // initialA, operand, initialCarry, expectedA, expectedCarry, expectedZero, expectedNegative, expectedOverflow.
+        return Stream.of(
+                // Simple subtraction: 0x50 (80) - 0x10 (16) with carry=true (no borrow) => 0x50 - 0x10 = 0x40 (64)
+                Arguments.of(0x50, 0x10, true, (0x50 - 0x10) & 0xFF, true, false, false, false),
+                // Subtraction with borrow: 0x50 (80) - 0x10 (16) with carry=false => 0x50 - 0x10 - 1 = 0x3F (63)
+                Arguments.of(0x50, 0x10, false, (0x50 - 0x10 - 1) & 0xFF, true, false, false, false),
+                // Borrow case: 0x10 (16) - 0x20 (32) with carry=true => 0x10 - 0x20 = -16 -> 0xF0, borrow occurs so carry=false,
+                // negative flag set, no signed overflow.
+                Arguments.of(0x10, 0x20, true, (0x10 - 0x20) & 0xFF, false, false, true, false),
+                // Overflow case: subtracting a positive value from a negative number can trigger overflow.
+                // Example: 0x80 (-128) - 0x10 (16) with carry=true: result = 0x80 - 0x10 = 0x70 (112).
+                // Here, -128 (0x80) is negative and 0x70 is positive, so overflow is expected.
+                Arguments.of(0x80, 0x10, true, (0x80 - 0x10) & 0xFF, true, false, false, true),
+                // Similar overflow case with borrow: 0x80 (-128) - 0x10 (16) with carry=false: 0x80 - 0x10 - 1 = 0x6F (111)
+                // => overflow expected.
+                Arguments.of(0x80, 0x10, false, (0x80 - 0x10 - 1) & 0xFF, true, false, false, true)
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_Immediate_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 2;
+        int opcode = 0xE9;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_ZeroPage_Flags(int initialA, int operand, boolean initialCarry,
+                                   int expectedA, boolean expectedCarry, boolean expectedZero,
+                                   boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 3;
+        int opcode = 0xE5;
+        int zpAddress = 0x10;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpAddress)
+                .withMemoryValue(zpAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_ZeroPageX_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0xF5;
+        int zpBase = 0x10;
+        int registerX = 0x05;
+        int effectiveAddress = (zpBase + registerX) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpBase)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_Absolute_Flags(int initialA, int operand, boolean initialCarry,
+                                   int expectedA, boolean expectedCarry, boolean expectedZero,
+                                   boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0xED;
+        int absAddress = 0x9000;
+        int low = absAddress & 0xFF;
+        int high = (absAddress >> 8) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(absAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    // SBC Absolute,X (opcode 0xFD, 5 cycles; non-page-crossing case)
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_AbsoluteX_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0xFD;
+        int absBase = 0x9000;
+        int registerX = 0x05;
+        int effectiveAddress = absBase + registerX;
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_AbsoluteY_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 4;
+        int opcode = 0xF9;
+        int absBase = 0x9000;
+        int registerY = 0x05;
+        int effectiveAddress = absBase + registerY;
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_IndirectX_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 6;
+        int opcode = 0xE1;
+        int zpBase = 0x10;
+        int registerX = 0x05;
+        int pointerAddress = (zpBase + registerX) & 0xFF;
+        int effectiveAddress = 0x9000;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpBase)
+                .withZeroPagePointer(pointerAddress, effectiveAddress & 0xFF, (effectiveAddress >> 8) & 0xFF)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    @ParameterizedTest
+    @MethodSource("provideSBCArguments")
+    public void SBC_IndirectY_Flags(int initialA, int operand, boolean initialCarry,
+                                    int expectedA, boolean expectedCarry, boolean expectedZero,
+                                    boolean expectedNegative, boolean expectedOverflow) {
+        final int instructionCycles = 5;
+        int opcode = 0xF1;
+        int zpAddress = 0x10;
+        int baseAddress = 0x9000;
+        int registerY = 0x05;
+        int effectiveAddress = baseAddress + registerY;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpAddress)
+                .withZeroPagePointer(zpAddress, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    // Page crossing: Base address 0x90FF with X = 0x01 results in effective address 0x9100.
+    @Test
+    public void SBC_AbsoluteX_PageCrossing_Flags() {
+        final int instructionCycles = 5;
+        int opcode = 0xFD;
+        int absBase = 0x90FF;
+        int registerX = 0x01;
+        int effectiveAddress = absBase + registerX; // 0x9100.
+
+        int initialA = 0x50;
+        int operand = 0x10;
+        boolean initialCarry = true;
+        int expectedA = (initialA - operand) & 0xFF;
+        boolean expectedCarry = true;
+        boolean expectedZero = (expectedA == 0);
+        boolean expectedNegative = (expectedA & 0x80) != 0;
+        boolean expectedOverflow = false;
+
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterX(registerX)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    // Page crossing: Base address 0x90FF with Y = 0x01 results in effective address 0x9100.
+    @Test
+    public void SBC_AbsoluteY_PageCrossing_Flags() {
+        final int instructionCycles = 5;
+        int opcode = 0xF9;
+        int absBase = 0x90FF;
+        int registerY = 0x01;
+        int effectiveAddress = absBase + registerY; // 0x9100.
+
+        int initialA = 0x50;
+        int operand = 0x10;
+        boolean initialCarry = true;
+        int expectedA = (initialA - operand) & 0xFF; // 0x40.
+        boolean expectedCarry = true;
+        boolean expectedZero = (expectedA == 0);
+        boolean expectedNegative = (expectedA & 0x80) != 0;
+        boolean expectedOverflow = false;
+
+        int low = absBase & 0xFF;
+        int high = (absBase >> 8) & 0xFF;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, low, high)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
+
+    // Page crossing: Zero-page pointer at 0x10 points to base address 0x90FF; with Y = 0x01, effective address becomes 0x9100.
+    @Test
+    public void SBC_IndirectY_PageCrossing_Flags() {
+        final int instructionCycles = 6;
+        int opcode = 0xF1;
+        int zpAddress = 0x10;
+        int baseAddress = 0x90FF;
+        int registerY = 0x01;
+        int effectiveAddress = baseAddress + registerY; // 0x9100.
+
+        int initialA = 0x50;
+        int operand = 0x10;
+        boolean initialCarry = true;
+        int expectedA = (initialA - operand) & 0xFF;
+        boolean expectedCarry = true;
+        boolean expectedZero = (expectedA == 0);
+        boolean expectedNegative = (expectedA & 0x80) != 0;
+        boolean expectedOverflow = false;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(initialA)
+                .withRegisterY(registerY)
+                .withFlagCarry(initialCarry)
+                .withInstruction(0x8000, opcode, zpAddress)
+                .withZeroPagePointer(zpAddress, baseAddress & 0xFF, (baseAddress >> 8) & 0xFF)
+                .withMemoryValue(effectiveAddress, operand);
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+
+        assertEquals(expectedA, state.getA(), "Accumulator result");
+        assertEquals(expectedCarry, state.isCarry(), "Carry flag");
+        assertEquals(expectedZero, state.isZero(), "Zero flag");
+        assertEquals(expectedNegative, state.isNegative(), "Negative flag");
+        assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
+    }
 }

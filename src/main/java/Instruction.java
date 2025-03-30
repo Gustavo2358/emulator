@@ -52,5 +52,6 @@ public enum Instruction {
     BRK,
     RTI,
     NOP,
-    ADC
+    ADC,
+    SBC
 }

@@ -301,6 +301,15 @@ public class CPU {
             case 0x79 -> loadInstructionInitialState(5, Instruction.ADC, AddressingMode.ABS_Y);
             case 0x61 -> loadInstructionInitialState(6, Instruction.ADC, AddressingMode.IND_X);
             case 0x71 -> loadInstructionInitialState(6, Instruction.ADC, AddressingMode.IND_Y);
+            // SBC opcodes
+            case 0xE9 -> loadInstructionInitialState(2, Instruction.SBC, AddressingMode.IMM);
+            case 0xE5 -> loadInstructionInitialState(3, Instruction.SBC, AddressingMode.ZPG);
+            case 0xF5 -> loadInstructionInitialState(4, Instruction.SBC, AddressingMode.ZPG_X);
+            case 0xED -> loadInstructionInitialState(4, Instruction.SBC, AddressingMode.ABS);
+            case 0xFD -> loadInstructionInitialState(5, Instruction.SBC, AddressingMode.ABS_X);
+            case 0xF9 -> loadInstructionInitialState(5, Instruction.SBC, AddressingMode.ABS_Y);
+            case 0xE1 -> loadInstructionInitialState(6, Instruction.SBC, AddressingMode.IND_X);
+            case 0xF1 -> loadInstructionInitialState(6, Instruction.SBC, AddressingMode.IND_Y);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -361,6 +370,7 @@ public class CPU {
             case RTI -> RTI();
             case NOP -> NOP();
             case ADC -> ADC();
+            case SBC -> SBC();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -1033,6 +1043,46 @@ public class CPU {
         negative = (currInstruction.tempLatch & 0x80) != 0;
         overflow = (((~a.getValue() ^ currInstruction.operand) & (a.getValue() ^ currInstruction.tempLatch)) & 0x80) != 0;
     }
+
+    private void SBC() {
+        // Define an operation lambda that computes the subtraction result
+        // For SBC: A = A - fetched - (carry ? 0 : 1)
+        Function<Integer, Integer> op = (fetched) -> {
+            currInstruction.operand = fetched;
+            int borrow = (carry ? 0 : 1);
+            currInstruction.tempLatch = a.getValue() - fetched - borrow;
+            setSBCFlags();
+            return currInstruction.tempLatch;
+        };
+
+        switch (currInstruction.addressingMode) {
+            case IMM -> {
+                int fetched = fetch();
+                a.setValue(op.apply(fetched));
+            }
+            case ZPG -> handleRead_ZeroPageMode(a, op);
+            case ZPG_X -> handleRead_ZeroPageIndexed(a, x, op);
+            case ABS -> handleRead_AbsoluteMode(a, op);
+            case ABS_X -> handleRead_AbsoluteIndexed(a, x, op);
+            case ABS_Y -> handleRead_AbsoluteIndexed(a, y, op);
+            case IND_X -> handleRead_IndirectXIndexed(a, op);
+            case IND_Y -> handleRead_IndirectYIndexed(a, op);
+        }
+    }
+
+    private void setSBCFlags() {
+        int originalA = a.getValue();
+        int borrow = (carry ? 0 : 1);
+        // For SBC, the carry flag is set if no borrow occurred:
+        // That is, if originalA >= (operand + borrow)
+        carry = originalA >= (currInstruction.operand + borrow);
+        zero = (currInstruction.tempLatch & 0xFF) == 0;
+        negative = (currInstruction.tempLatch & 0x80) != 0;
+        // Overflow flag for SBC is computed using:
+        // overflow = (((originalA ^ result) & (originalA ^ operand)) & 0x80) != 0;
+        overflow = (((originalA ^ currInstruction.tempLatch) & (originalA ^ currInstruction.operand)) & 0x80) != 0;
+    }
+
 
     private void handleRelativeInstructions(boolean branchNotTakenCondition) {
         switch (remainingCycles) {
