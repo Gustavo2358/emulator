@@ -17,6 +17,9 @@ public class CPU {
 
     private int remainingCycles;
 
+    private boolean nmiPending = false;
+    private boolean processingNMI = false;
+
     public CPU(Bus bus) {
         this.bus = bus;
 
@@ -104,8 +107,21 @@ public class CPU {
         bus.write(effectiveAddress, value);
     }
 
+    public void triggerNMI() {
+        nmiPending = true;
+    }
+
     public void runCycle() {
-        if(isOpCode()) {
+        if (remainingCycles == 0) {
+            if (nmiPending && !processingNMI) {
+                processingNMI = true;
+                remainingCycles = 7;
+            }
+        }
+
+        if (processingNMI) {
+            handleNMI();
+        } else if (isOpCode()) {
             decodeOpCode(fetch());
         } else {
             executeInstruction();
@@ -396,6 +412,44 @@ public class CPU {
             //decremented outside of this function, so if we decrement it here, we
             //make sure it will not reach case 1.
             remainingCycles--;
+        }
+    }
+
+    private void handleNMI() {
+        switch (remainingCycles) {
+            case 7 -> {
+                // Dummy cycle; you might perform a dummy read here if desired.
+            }
+            case 6 -> {
+                // Push the high byte of the PC onto the stack.
+                write(0x0100 | sp.getValue(), (pc >> 8) & 0xFF);
+                sp.decrement();
+            }
+            case 5 -> {
+                // Push the low byte of the PC onto the stack.
+                write(0x0100 | sp.getValue(), pc & 0xFF);
+                sp.decrement();
+            }
+            case 4 -> {
+                // Push the processor status onto the stack.
+                // For NMI, use flagsToBits(false) so that the B flag is not set.
+                write(0x0100 | sp.getValue(), flagsToBits(false));
+                sp.decrement();
+            }
+            case 3 -> {
+                // Read the low byte of the NMI vector from 0xFFFA.
+                currInstruction.effectiveAddress = read(0xFFFA) & 0xFF;
+            }
+            case 2 -> {
+                // Read the high byte of the NMI vector from 0xFFFB and update PC.
+                int pch = read(0xFFFB) & 0xFF;
+                pc = (pch << 8) | currInstruction.effectiveAddress;
+            }
+            case 1 -> {
+                // Final cycle: finish the NMI sequence.
+                processingNMI = false;
+                nmiPending = false;
+            }
         }
     }
 

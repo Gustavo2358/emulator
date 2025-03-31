@@ -4478,4 +4478,88 @@ class CPUTest {
         assertFalse(state.isNegative(), "Negative flag should be clear as per bit 7 of operand (0x55 -> 0)");
         assertTrue(state.isOverflow(), "Overflow flag should be set as per bit 6 of operand (0x55 -> 1)");
     }
+
+    @Test
+    public void testNMIInterrupt() {
+        int resetAddress = 0x8000;
+        int nmiLow = 0x34;
+        int nmiHigh = 0x12;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                //NMI vector values.
+                .withMemoryValue(0xFFFA, nmiLow)
+                .withMemoryValue(0xFFFB, nmiHigh);
+
+        CPU cpu = builder.buildAndRun(0);
+
+        cpu.triggerNMI();
+
+        for (int i = 0; i < 7; i++) {
+            cpu.runCycle();
+        }
+
+        CpuState stateAfterNMI = cpu.getState();
+        assertEquals(0x1234, stateAfterNMI.getPc(), "PC should be set to the NMI vector (0x1234)");
+
+        // The stack pointer should be decremented by 3:
+        // Typically, the initial SP is 0xFD; after three pushes it should be 0xFA.
+        assertEquals(0xFA, stateAfterNMI.getSp(), "Stack pointer should be decremented by 3 after NMI");
+
+        // If CPU exposes the NMI flags (nmiPending and processingNMI), you could assert that they are false.
+        // For example:
+        // assertFalse(cpu.isNMIPending(), "NMI pending flag should be cleared after servicing NMI");
+        // assertFalse(cpu.isProcessingNMI(), "NMI processing flag should be cleared after NMI completes");
+    }
+
+    @Test
+    public void testNMIInterruptAndRTI() {
+        int resetAddress = 0x8000;
+        int nmiLow = 0x34;
+        int nmiHigh = 0x12;
+        int nmiVector = (nmiHigh << 8) | nmiLow;
+
+        // At 0x8000, place a NOP (opcode 0xEA) that takes 2 cycles.
+        // At the NMI vector (0x1234), place an RTI instruction (opcode 0x40) that takes 6 cycles.
+        int nopOpcode = 0xEA;
+        int rtiOpcode = 0x40;
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(resetAddress)
+                .withInstruction(0x8000, nopOpcode)
+                .withMemoryValue(0xFFFA, nmiLow)
+                .withMemoryValue(0xFFFB, nmiHigh)
+                .withInstruction(nmiVector, rtiOpcode);
+
+        CPU cpu = builder.buildAndRun(0);
+
+        // Run 1 cycle: the NOP has started but is not yet complete.
+        cpu.runCycle();
+
+        // Trigger NMI in the middle of executing the NOP.
+        cpu.triggerNMI();
+
+        // Complete the current instruction (NOP).
+        // Since NOP is a 2-cycle instruction, run one more cycle.
+        cpu.runCycle();
+
+        assertEquals(0x8001, cpu.getState().getPc(), "PC should point to the next instruction after NOP");
+
+        // Now that the current instruction finished, the pending NMI is recognized.
+        for (int i = 0; i < 7; i++) {
+            cpu.runCycle();
+        }
+
+        CpuState stateAfterNMI = cpu.getState();
+        assertEquals(nmiVector, stateAfterNMI.getPc(), "PC should be set to the NMI vector (0x1234) after NMI");
+        assertEquals(0xFA, stateAfterNMI.getSp(), "SP should be decremented by 3 after NMI");
+
+        // RTI takes 6 cycles to restore PC and status.
+        for (int i = 0; i < 6; i++) {
+            cpu.runCycle();
+        }
+
+        CpuState finalState = cpu.getState();
+        assertEquals(0x8001, finalState.getPc(), "After RTI, PC should be restored to 0x8001 (continuing the interrupted flow)");
+        assertEquals(0xFD, finalState.getSp(), "After RTI, SP should be restored to its initial value (0xFD)");
+    }
 }
