@@ -4438,4 +4438,44 @@ class CPUTest {
         assertEquals(expectedNegative, state.isNegative(), "Negative flag");
         assertEquals(expectedOverflow, state.isOverflow(), "Overflow flag");
     }
+
+    @Test
+    public void BIT_ZeroPage_Flags_SetZero() {
+        final int instructionCycles = 3;
+        int opcode = 0x24;
+        int zpAddress = 0x10;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0x0F)
+                .withInstruction(0x8000, opcode, zpAddress)
+                .withMemoryValue(zpAddress, 0xF0);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+
+        assertTrue(state.isZero(), "Zero flag should be set because (A & operand) == 0");
+        assertTrue(state.isNegative(), "Negative flag should be set as per bit 7 of operand (0xF0 -> 1)");
+        assertTrue(state.isOverflow(), "Overflow flag should be set as per bit 6 of operand (0xF0 -> 1)");
+    }
+
+    @Test
+    public void BIT_Absolute_Flags_ClearZero() {
+        final int instructionCycles = 4;
+        int opcode = 0x2C;
+        int absAddress = 0x9000;
+
+        CPUTestBuilder builder = new CPUTestBuilder()
+                .withResetVector(0x8000)
+                .withRegisterA(0xFF)
+                .withInstruction(0x8000, opcode, absAddress & 0xFF, absAddress >> 8)
+                .withMemoryValue(absAddress, 0x55);
+
+        CPU cpu = builder.buildAndRun(instructionCycles);
+        CpuState state = cpu.getState();
+
+        assertFalse(state.isZero(), "Zero flag should be clear because (A & operand) != 0");
+        assertFalse(state.isNegative(), "Negative flag should be clear as per bit 7 of operand (0x55 -> 0)");
+        assertTrue(state.isOverflow(), "Overflow flag should be set as per bit 6 of operand (0x55 -> 1)");
+    }
 }

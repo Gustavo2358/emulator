@@ -53,5 +53,6 @@ public enum Instruction {
     RTI,
     NOP,
     ADC,
-    SBC
+    SBC,
+    BIT
 }

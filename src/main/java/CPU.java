@@ -310,6 +310,9 @@ public class CPU {
             case 0xF9 -> loadInstructionInitialState(5, Instruction.SBC, AddressingMode.ABS_Y);
             case 0xE1 -> loadInstructionInitialState(6, Instruction.SBC, AddressingMode.IND_X);
             case 0xF1 -> loadInstructionInitialState(6, Instruction.SBC, AddressingMode.IND_Y);
+            // BIT opcodes
+            case 0x24 -> loadInstructionInitialState(3, Instruction.BIT, AddressingMode.ZPG);
+            case 0x2C -> loadInstructionInitialState(4, Instruction.BIT, AddressingMode.ABS);
             default -> throw new RuntimeException(String.format("Invalid opcode: 0x%x at address 0x%x", opCode, --pc));
         }
     }
@@ -371,6 +374,7 @@ public class CPU {
             case NOP -> NOP();
             case ADC -> ADC();
             case SBC -> SBC();
+            case BIT -> BIT();
             default -> throw new RuntimeException("Unimplemented instruction: " + currInstruction.instruction);
         }
     }
@@ -1083,6 +1087,22 @@ public class CPU {
         overflow = (((originalA ^ currInstruction.tempLatch) & (originalA ^ currInstruction.operand)) & 0x80) != 0;
     }
 
+    private void BIT() {
+        Function<Integer, Integer> op = (fetched) -> {
+            currInstruction.operand = fetched;
+            int andResult = a.getValue() & fetched;
+            zero = (andResult == 0);
+            negative = (fetched & 0x80) != 0;
+            overflow = (fetched & 0x40) != 0;
+            return a.getValue();
+        };
+
+        switch (currInstruction.addressingMode) {
+            case ZPG -> handleRead_ZeroPageMode(a, op);
+            case ABS -> handleRead_AbsoluteMode(a, op);
+            default -> throw new RuntimeException("Unsupported addressing mode for BIT: " + currInstruction.addressingMode);
+        }
+    }
 
     private void handleRelativeInstructions(boolean branchNotTakenCondition) {
         switch (remainingCycles) {
