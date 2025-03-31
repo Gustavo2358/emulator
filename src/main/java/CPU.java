@@ -573,7 +573,7 @@ public class CPU {
     private void PHA() {
         switch (remainingCycles) {
             case 2 -> write(0x0100 | sp.getValue(), a.getValue());
-            case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
+            case 1 -> sp.decrement();
         }
     }
 
@@ -607,7 +607,7 @@ public class CPU {
     private void PHP() {
         switch (remainingCycles) {
             case 2 -> write(0x0100 | sp.getValue(), flagsToBits(true));
-            case 1 -> sp.setValue((sp.getValue() - 1) & 0xFF);
+            case 1 -> sp.decrement();
         }
     }
 
