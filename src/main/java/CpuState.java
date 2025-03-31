@@ -27,7 +27,7 @@ public class CpuState {
         public Builder y(int y) { this.y = y; return this; }
         public Builder carry(boolean carry) { this.carry = carry; return this; }
         public Builder zero(boolean zero) { this.zero = zero; return this; }
-        public Builder interruptDisable(boolean interrupt_disable) { this.interruptDisable = interrupt_disable; return this; }
+        public Builder interruptDisable(boolean interruptDisable) { this.interruptDisable = interruptDisable; return this; }
         public Builder decimal(boolean decimal) { this.decimal = decimal; return this; }
         public Builder overflow(boolean overflow) { this.overflow = overflow; return this; }
         public Builder negative(boolean negative) { this.negative = negative; return this; }

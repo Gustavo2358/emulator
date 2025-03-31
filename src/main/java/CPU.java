@@ -500,9 +500,8 @@ public class CPU {
         }
 
         if(remainingCycles == 1) {
-            // Update Zero and Negative flags based on X
-            zero = (x.getValue() == 0);
-            negative = (x.getValue() & 0x80) != 0;
+            zero = (y.getValue() == 0);
+            negative = (y.getValue() & 0x80) != 0;
         }
     }
 
