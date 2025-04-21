@@ -1,3 +1,5 @@
+import mapper.Mapper;
+
 public class Cartridge {
     private static final int EIGHT_KB = 8192;
     private static final int SIXTEEN_KB = 16384;

@@ -1,3 +1,6 @@
+import mapper.Mapper;
+import mapper.NROMMapper;
+
 public class MapperFactory {
     public static Mapper createMapper(int mapperId, int prgRomSize, int chrRomSize) {
         switch (mapperId) {

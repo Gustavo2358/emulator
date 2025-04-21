@@ -1,3 +1,5 @@
+package mapper;
+
 public class NROMMapper implements Mapper {
     private final int prgRomSize;
 
