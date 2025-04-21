@@ -1,6 +1,8 @@
 import mapper.Mapper;
+import java.util.logging.Logger;
 
 public class Cartridge {
+    private static final Logger logger = Logger.getLogger(Cartridge.class.getName());
     private static final int EIGHT_KB = 8192;
     private static final int SIXTEEN_KB = 16384;
     private static final int PRG_ROM_UNIT_SIZE = SIXTEEN_KB; // 16KB
@@ -122,32 +124,49 @@ public class Cartridge {
     }
 
     public static Cartridge fromNesFile(byte[] fileData) {
+        logger.info("Processing NES ROM file of size " + fileData.length + " bytes");
+
         // Validate iNES header
         if (fileData.length < 16 ||
             fileData[0] != 'N' || fileData[1] != 'E' || fileData[2] != 'S' || fileData[3] != 0x1A) {
+            logger.severe("Invalid NES ROM file format. Header validation failed.");
             throw new IllegalArgumentException("Invalid NES ROM file format");
         }
+
+        logger.info("Valid iNES header found: 'NES\\u001A'");
 
         int prgRomSizeIn16kb = fileData[4];
         int chrRomSizeIn8kb = fileData[5];
         int flags6 = fileData[6];
         int flags7 = fileData[7];
 
+        logger.info(String.format("ROM configuration: PRG ROM: %d x 16KB, CHR ROM: %d x 8KB",
+                    prgRomSizeIn16kb, chrRomSizeIn8kb));
+        logger.info(String.format("Flags: byte 6: 0x%02X, byte 7: 0x%02X", flags6, flags7));
+
         // Extract mapper ID (low nibble from byte 6, high nibble from byte 7)
         int mapperId = ((flags7 & 0xF0) | (flags6 >> 4)) & 0xFF;
+        logger.info("Mapper ID: " + mapperId);
 
         boolean verticalMirroring = (flags6 & 0x01) == 0x01;
         boolean hasBatteryBackedRAM = (flags6 & 0x02) == 0x02;
         boolean hasTrainer = (flags6 & 0x04) == 0x04;
         boolean fourScreenVRAM = (flags6 & 0x08) == 0x08;
 
+        logger.info(String.format("ROM features: Vertical mirroring: %b, Battery-backed RAM: %b, Trainer: %b, Four-screen VRAM: %b",
+                    verticalMirroring, hasBatteryBackedRAM, hasTrainer, fourScreenVRAM));
+
         int trainerSize = hasTrainer ? 512 : 0;
         int prgRomSize = prgRomSizeIn16kb * PRG_ROM_UNIT_SIZE;
         int chrRomSize = chrRomSizeIn8kb * CHR_ROM_UNIT_SIZE;
 
+        logger.info(String.format("Memory layout: PRG ROM: %d bytes, CHR ROM: %d bytes, Trainer: %d bytes",
+                    prgRomSize, chrRomSize, trainerSize));
+
         int headerSize = 16;
         int[] prgRom = new int[prgRomSize];
         int prgStart = headerSize + trainerSize;
+        logger.info("Loading PRG ROM data from offset " + prgStart);
         for (int i = 0; i < prgRomSize; i++) {
             prgRom[i] = fileData[prgStart + i] & 0xFF;
         }
@@ -156,10 +175,12 @@ public class Cartridge {
         if (chrRomSize > 0) {
             chrRom = new int[chrRomSize];
             int chrStart = prgStart + prgRomSize;
+            logger.info("Loading CHR ROM data from offset " + chrStart);
             for (int i = 0; i < chrRomSize; i++) {
                 chrRom[i] = fileData[chrStart + i] & 0xFF;
             }
         } else {
+            logger.info("No CHR ROM found, game will use CHR RAM");
             chrRom = new int[0];
         }
 
@@ -169,9 +190,14 @@ public class Cartridge {
         } else {
             mirroringMode = verticalMirroring ? MirroringMode.VERTICAL : MirroringMode.HORIZONTAL;
         }
-        Mapper mapper = MapperFactory.createMapper(mapperId, prgRomSize, chrRomSize);
+        logger.info("Using mirroring mode: " + mirroringMode);
 
-        return new Cartridge(prgRom, chrRom, mapper, hasBatteryBackedRAM, mirroringMode);
+        Mapper mapper = MapperFactory.createMapper(mapperId, prgRomSize, chrRomSize);
+        logger.info("Created mapper: " + mapper.getClass().getSimpleName() + " (ID: " + mapperId + ")");
+
+        Cartridge cartridge = new Cartridge(prgRom, chrRom, mapper, hasBatteryBackedRAM, mirroringMode);
+        logger.info("Cartridge loaded successfully");
+
+        return cartridge;
     }
 }
-
