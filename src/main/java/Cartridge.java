@@ -1,0 +1,175 @@
+public class Cartridge {
+    private static final int EIGHT_KB = 8192;
+    private static final int SIXTEEN_KB = 16384;
+    private static final int PRG_ROM_UNIT_SIZE = SIXTEEN_KB; // 16KB
+    private static final int CHR_ROM_UNIT_SIZE = EIGHT_KB;  // 8KB
+
+    // ROM and RAM data
+    private final int[] prgRom;
+    private final int[] prgRam;
+    private final int[] chrRom;
+    private int[] chrRam;
+
+    // Configuration
+    private final Mapper mapper;
+    private final boolean useChrRam;
+    private final boolean hasBatteryBackedRam;
+    private final MirroringMode mirroringMode;
+
+    public Cartridge(
+            int[] prgRom,
+            int[] chrRom,
+            Mapper mapper,
+            boolean hasBatteryBackedRam,
+            MirroringMode mirroringMode) {
+
+        // PRG ROM size must be a multiple of 16KB (16384 bytes)
+        if (prgRom.length % PRG_ROM_UNIT_SIZE != 0) {
+            throw new IllegalArgumentException("PRG ROM size must be a multiple of 16KB");
+        }
+
+        // CHR ROM size must be a multiple of 8KB (8192 bytes)
+        // Note: CHR ROM can be zero length for some cartridges that use CHR RAM instead
+        if (chrRom.length > 0 && chrRom.length % CHR_ROM_UNIT_SIZE != 0) {
+            throw new IllegalArgumentException("CHR ROM size must be a multiple of 8KB");
+        }
+
+        this.prgRom = prgRom;
+        this.chrRom = chrRom;
+        this.mapper = mapper;
+        useChrRam = chrRom.length == 0;
+        this.hasBatteryBackedRam = hasBatteryBackedRam;
+        this.mirroringMode = mirroringMode;
+
+        this.prgRam = new int[EIGHT_KB];
+
+    }
+
+    public int cpuRead(int address) {
+        if (address >= 0x8000 && address <= 0xFFFF) {
+            int index = mapper.mapPrgRomAddress(address);
+            if (index >= 0 && index < prgRom.length) {
+                return prgRom[index];
+            }
+        } else if (address >= 0x6000 && address <= 0x7FFF) {
+            return prgRam[address - 0x6000];
+        }
+        return 0;
+    }
+
+    public void cpuWrite(int address, int value) {
+        if (address >= 0x6000 && address <= 0x7FFF) {
+            prgRam[address - 0x6000] = value;
+        }
+    }
+
+    public int ppuRead(int address) {
+        if (address >= 0x0000 && address <= 0x1FFF) {
+            int index = mapper.mapChrRomAddress(address);
+
+            if (useChrRam) {
+                if (chrRam == null) {
+                    chrRam = new int[CHR_ROM_UNIT_SIZE];
+                }
+                return index < chrRam.length ? chrRam[index] : 0;
+            } else {
+                return index < chrRom.length ? chrRom[index] : 0;
+            }
+        }
+        return 0;
+    }
+
+    public void ppuWrite(int address, int value) {
+        if (address >= 0x0000 && address <= 0x1FFF && useChrRam) {
+            int index = mapper.mapChrRomAddress(address);
+            if (chrRam == null) {
+                chrRam = new int[CHR_ROM_UNIT_SIZE];
+            }
+            if (index >= 0 && index < chrRam.length) {
+                chrRam[index] = value;
+            }
+        }
+    }
+
+    // Save data methods
+    public byte[] getSaveData() {
+        if (hasBatteryBackedRam) {
+            byte[] saveData = new byte[prgRam.length];
+            for (int i = 0; i < prgRam.length; i++) {
+                saveData[i] = (byte) prgRam[i];
+            }
+            return saveData;
+        }
+        return new byte[0];
+    }
+
+    public void loadSaveData(byte[] saveData) {
+        if (hasBatteryBackedRam && saveData.length == prgRam.length) {
+            for (int i = 0; i < prgRam.length; i++) {
+                prgRam[i] = saveData[i] & 0xFF;
+            }
+        }
+    }
+
+    public MirroringMode getMirroringMode() {
+        return mirroringMode;
+    }
+
+    public int getMapperId() {
+        return mapper.getId();
+    }
+
+    public static Cartridge fromNesFile(byte[] fileData) {
+        // Validate iNES header
+        if (fileData.length < 16 ||
+            fileData[0] != 'N' || fileData[1] != 'E' || fileData[2] != 'S' || fileData[3] != 0x1A) {
+            throw new IllegalArgumentException("Invalid NES ROM file format");
+        }
+
+        int prgRomSizeIn16kb = fileData[4];
+        int chrRomSizeIn8kb = fileData[5];
+        int flags6 = fileData[6];
+        int flags7 = fileData[7];
+
+        // Extract mapper ID (low nibble from byte 6, high nibble from byte 7)
+        int mapperId = ((flags7 & 0xF0) | (flags6 >> 4)) & 0xFF;
+
+        boolean verticalMirroring = (flags6 & 0x01) == 0x01;
+        boolean hasBatteryBackedRAM = (flags6 & 0x02) == 0x02;
+        boolean hasTrainer = (flags6 & 0x04) == 0x04;
+        boolean fourScreenVRAM = (flags6 & 0x08) == 0x08;
+
+        int trainerSize = hasTrainer ? 512 : 0;
+        int prgRomSize = prgRomSizeIn16kb * PRG_ROM_UNIT_SIZE;
+        int chrRomSize = chrRomSizeIn8kb * CHR_ROM_UNIT_SIZE;
+
+        int headerSize = 16;
+        int[] prgRom = new int[prgRomSize];
+        int prgStart = headerSize + trainerSize;
+        for (int i = 0; i < prgRomSize; i++) {
+            prgRom[i] = fileData[prgStart + i] & 0xFF;
+        }
+
+        int[] chrRom;
+        if (chrRomSize > 0) {
+            chrRom = new int[chrRomSize];
+            int chrStart = prgStart + prgRomSize;
+            for (int i = 0; i < chrRomSize; i++) {
+                chrRom[i] = fileData[chrStart + i] & 0xFF;
+            }
+        } else {
+            chrRom = new int[0];
+        }
+
+        MirroringMode mirroringMode;
+        if (fourScreenVRAM) {
+            mirroringMode = MirroringMode.FOUR_SCREEN;
+        } else {
+            mirroringMode = verticalMirroring ? MirroringMode.VERTICAL : MirroringMode.HORIZONTAL;
+        }
+        Mapper mapper = MapperFactory.createMapper(mapperId, prgRomSize, chrRomSize);
+
+        return new Cartridge(prgRom, chrRom, mapper, hasBatteryBackedRAM, mirroringMode);
+    }
+}
+
