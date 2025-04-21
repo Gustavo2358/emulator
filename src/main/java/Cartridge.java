@@ -95,7 +95,6 @@ public class Cartridge {
         }
     }
 
-    // Save data methods
     public byte[] getSaveData() {
         if (hasBatteryBackedRam) {
             byte[] saveData = new byte[prgRam.length];
