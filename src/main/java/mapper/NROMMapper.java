@@ -15,6 +15,10 @@ public class NROMMapper implements Mapper {
 
     @Override
     public int mapPrgRomAddress(int cpuAddress) {
+        if (cpuAddress < CPU_PRG_ROM_START || cpuAddress > 0xFFFF) {
+            throw new IllegalArgumentException("Address out of range: " + cpuAddress);
+        }
+
         if (prgRomSize == PRG_ROM_16KB) {
             // Mirror the 16KB ROM for addresses 0xC000-0xFFFF
             if (cpuAddress >= CPU_UPPER_BANK_START) {
