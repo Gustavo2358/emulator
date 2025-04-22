@@ -4,8 +4,8 @@ import java.util.function.Function;
 public class CPU {
 
     private int pc;
-    private final Register8Bit sp;
-    private final Register8Bit a, x, y;
+    private final EightBitRegister sp;
+    private final EightBitRegister a, x, y;
     private boolean carry;
     private boolean zero;
     private boolean interruptDisable;
@@ -24,10 +24,10 @@ public class CPU {
         this.bus = bus;
 
         pc = 0x00;
-        sp = new Register8Bit(0xFD);
-        a = new Register8Bit(0x00);
-        x = new Register8Bit(0x00);
-        y = new Register8Bit(0x00);
+        sp = new EightBitRegister(0xFD);
+        a = new EightBitRegister(0x00);
+        x = new EightBitRegister(0x00);
+        y = new EightBitRegister(0x00);
         //TODO find the correct initial values for the status flags
         carry = false;
         zero = false;
@@ -403,7 +403,7 @@ public class CPU {
         this.currInstruction.addressingMode = addressingMode;
     }
 
-    private void handlePageCrossingInLoadInstruction(int address, Register8Bit register, Function<Integer, Integer> operation) {
+    private void handlePageCrossingInLoadInstruction(int address, EightBitRegister register, Function<Integer, Integer> operation) {
         if((address & 0xFF00) == (currInstruction.effectiveAddress & 0xFF00)) {
 
             int read = read(currInstruction.effectiveAddress);
@@ -878,7 +878,7 @@ public class CPU {
         interruptDisable = true;
     }
 
-    private Function<Integer, Integer> getCmpFunction(Register8Bit register) {
+    private Function<Integer, Integer> getCmpFunction(EightBitRegister register) {
         return operand -> {
             int regValue = register.getValue() & 0xFF;
             int diff = regValue - operand;
@@ -1188,7 +1188,7 @@ public class CPU {
 
         }
     }
-    private void handleReadModifyWriteInstructions_AbsoluteIndexed(Register8Bit register, Function<Integer, Integer> operation) {
+    private void handleReadModifyWriteInstructions_AbsoluteIndexed(EightBitRegister register, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 6 -> currInstruction.effectiveAddress = fetch();
             case 5 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
@@ -1209,7 +1209,7 @@ public class CPU {
         }
     }
 
-    private void handleReadModifyWriteInstructions_ZeroPageIndexed(Register8Bit register, Function<Integer, Integer> operation) {
+    private void handleReadModifyWriteInstructions_ZeroPageIndexed(EightBitRegister register, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 5 -> currInstruction.effectiveAddress = fetch();
             case 4 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + register.getValue()) & 0xFF;
@@ -1219,7 +1219,7 @@ public class CPU {
         }
     }
 
-    private void handleRead_ZeroPageMode(Register8Bit register, Function<Integer,Integer> operation) {
+    private void handleRead_ZeroPageMode(EightBitRegister register, Function<Integer,Integer> operation) {
         switch (remainingCycles) {
             case 2 -> currInstruction.effectiveAddress = fetch();
             case 1 -> {
@@ -1229,7 +1229,7 @@ public class CPU {
         }
     }
 
-    private void handleRead_AbsoluteMode(Register8Bit register, Function<Integer,Integer> operation) {
+    private void handleRead_AbsoluteMode(EightBitRegister register, Function<Integer,Integer> operation) {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
@@ -1240,7 +1240,7 @@ public class CPU {
         }
     }
 
-    private void handleRead_ZeroPageIndexed(Register8Bit register, Register8Bit indexRegister, Function<Integer,Integer> operation) {
+    private void handleRead_ZeroPageIndexed(EightBitRegister register, EightBitRegister indexRegister, Function<Integer,Integer> operation) {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + indexRegister.getValue()) & 0xFF;
@@ -1251,7 +1251,7 @@ public class CPU {
         }
     }
 
-    private void handleRead_AbsoluteIndexed(Register8Bit register, Register8Bit indexRegister, Function<Integer, Integer> operation) {
+    private void handleRead_AbsoluteIndexed(EightBitRegister register, EightBitRegister indexRegister, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 4 -> currInstruction.effectiveAddress = fetch();
             case 3 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
@@ -1267,7 +1267,7 @@ public class CPU {
         }
     }
 
-    private void handleRead_IndirectXIndexed(Register8Bit register, Function<Integer, Integer> operation) {
+    private void handleRead_IndirectXIndexed(EightBitRegister register, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.operand = (currInstruction.operand + x.getValue()) & 0xFF;
@@ -1283,7 +1283,7 @@ public class CPU {
         }
     }
 
-    private void handleRead_IndirectYIndexed(Register8Bit register, Function<Integer, Integer> operation) {
+    private void handleRead_IndirectYIndexed(EightBitRegister register, Function<Integer, Integer> operation) {
         switch (remainingCycles) {
             case 5 -> currInstruction.operand = fetch();
             case 4 -> currInstruction.effectiveAddress = read(currInstruction.operand & 0xFF) ;
@@ -1304,14 +1304,14 @@ public class CPU {
     }
 
     // STORE INSTRUCTIONS
-    private void handleStore_ZeroPage(Register8Bit register) {
+    private void handleStore_ZeroPage(EightBitRegister register) {
         switch (remainingCycles) {
             case 2 -> currInstruction.effectiveAddress = fetch();
             case 1 -> write(currInstruction.effectiveAddress, register.getValue());
         }
     }
 
-    private void handleStore_ZeroPageIndexed(Register8Bit register, Register8Bit index) {
+    private void handleStore_ZeroPageIndexed(EightBitRegister register, EightBitRegister index) {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (currInstruction.effectiveAddress + index.getValue()) & 0xFF;
@@ -1319,7 +1319,7 @@ public class CPU {
         }
     }
 
-    private void handleStore_Absolute(Register8Bit register) {
+    private void handleStore_Absolute(EightBitRegister register) {
         switch (remainingCycles) {
             case 3 -> currInstruction.effectiveAddress = fetch();
             case 2 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
@@ -1327,7 +1327,7 @@ public class CPU {
         }
     }
 
-    private void handleSTAAbsoluteIndexed(Register8Bit index) {
+    private void handleSTAAbsoluteIndexed(EightBitRegister index) {
         switch (remainingCycles) {
             case 4 -> currInstruction.effectiveAddress = fetch();
             case 3 -> currInstruction.effectiveAddress = (fetch() << 8) | currInstruction.effectiveAddress;
