@@ -5,8 +5,7 @@ public class CPUTestBuilder {
 
     public CPUTestBuilder() {
         // Initialize WRAM with a 64K memory array.
-        wram = new WRAM();
-        wram.memory = new int[0x10000];
+        wram = new MockWRAM(new int[0x10000]);
         cpuStateBuilder = new CpuState.Builder();
     }
 
@@ -17,8 +16,8 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withResetVector(int address) {
-        wram.memory[0xFFFC] = address & 0xFF;
-        wram.memory[0xFFFD] = (address >> 8) & 0xFF;
+        wram.write(0xFFFC, address & 0xFF);
+        wram.write(0xFFFD, (address >> 8) & 0xFF);
         return this;
     }
 
@@ -31,9 +30,9 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withInstruction(int address, int opcode, int... operands) {
-        wram.memory[address] = opcode;
+        wram.write(address, opcode);
         for (int i = 0; i < operands.length; i++) {
-            wram.memory[address + 1 + i] = operands[i];
+            wram.write(address + 1 + i, operands[i]);
         }
         return this;
     }
@@ -47,9 +46,9 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withZeroPagePointer(int zeroPageAddress, int low, int high) {
-        wram.memory[zeroPageAddress] = low;
+        wram.write(zeroPageAddress, low);
         // Ensure that the second byte is also in the zero page (wrap-around if needed).
-        wram.memory[(zeroPageAddress + 1) & 0xFF] = high;
+        wram.write((zeroPageAddress + 1) & 0xFF, high);
         return this;
     }
 
@@ -94,7 +93,7 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withMemoryValue(int address, int value) {
-        wram.memory[address] = value;
+        wram.write(address, value);
         return this;
     }
 

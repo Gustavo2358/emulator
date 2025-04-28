@@ -31,6 +31,7 @@ public class CPUBus implements Bus {
 
     @Override
     public void loadWRamState(WRAM wram) {
-        System.arraycopy(wram.memory, 0, this.wram.memory, 0, this.wram.memory.length);
+        this.wram.loadMemoryState(wram);
+
     }
 }

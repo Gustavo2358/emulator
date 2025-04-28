@@ -7,6 +7,6 @@ public interface PPU {
 
     void reset();
 
-    void runClock();
+    void runCycle();
 
 }
