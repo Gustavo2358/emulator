@@ -1,5 +1,10 @@
+// `src/main/java/Main.java`
 import ppu.PPU;
 import ppu.PPUImpl;
+
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
     public static void main(String[] args) {
@@ -8,33 +13,22 @@ public class Main {
         var ppu = new PPUImpl();
         var bus = new CPUBus(wram, cartridge, ppu);
         var cpu = new CPU(bus);
-        startEmulation(cpu, ppu);
+
+        cpu.fetchProgramCounter();
+        scheduleEmulation(cpu, ppu);
     }
 
-    private static void startEmulation(CPU cpu, PPU ppu) {
-        cpu.fetchProgramCounter();
-        final long cycleDuration = 559; // in nanoseconds for NTSC
-        long nextCycleTime = System.nanoTime();
+    private static void scheduleEmulation(CPU cpu, PPU ppu) {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        long cycleDuration = 559; // nanoseconds for NTSC
 
-        while (true) {
-            long now = System.nanoTime();
-            long remaining = nextCycleTime - now;
+        scheduler.scheduleAtFixedRate(() -> {
+            cpu.runCycle();
+            ppu.runCycle();
+            ppu.runCycle();
+            ppu.runCycle();
+        }, 0, cycleDuration, TimeUnit.NANOSECONDS);
 
-            if (remaining <= 0) {
-                cpu.runCycle();
-                ppu.runCycle();
-                ppu.runCycle();
-                ppu.runCycle();
-                nextCycleTime += cycleDuration;
-            } else if (remaining > 1_000) { // more than 1 microsecond remaining
-                try {
-                    Thread.sleep(0, (int) Math.max(remaining - 500, 0));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            // When remaining time is very short, just busy-wait without yielding
-        }
+        Runtime.getRuntime().addShutdownHook(new Thread(scheduler::shutdownNow));
     }
 }
