@@ -52,12 +52,12 @@ public class PPUImpl implements PPU {
     };
 
     // Secondary OAM --------------------------------------------------------
-    private final int[] spriteX           = new int[8];
-    private final int[] spriteY           = new int[8];
-    private final int[] spriteTile        = new int[8];
-    private final int[] spriteAttribute   = new int[8];
-    private final int[] spriteDataLow     = new int[8];
-    private final int[] spriteDataHigh    = new int[8];
+    private final int[] spriteX = new int[8];
+    private final int[] spriteY = new int[8];
+    private final int[] spriteTile = new int[8];
+    private final int[] spriteAttribute = new int[8];
+    private final int[] spriteDataLow = new int[8];
+    private final int[] spriteDataHigh = new int[8];
     private int spriteCount;
 
     // Background fetching latches -----------------------------------------
@@ -72,12 +72,12 @@ public class PPUImpl implements PPU {
 
     // ---------------------------------------------------------------------
     public PPUImpl() {
-        vram       = new VRAM();
-        oam        = new OAM();
+        vram = new VRAM();
+        oam = new OAM();
         paletteRam = new PaletteRam();
 
         frameBuffer = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
-        frameData   = ((DataBufferInt) frameBuffer.getRaster().getDataBuffer()).getData();
+        frameData = ((DataBufferInt) frameBuffer.getRaster().getDataBuffer()).getData();
 
         reset();
     }
@@ -87,46 +87,46 @@ public class PPUImpl implements PPU {
     // =====================================================================
     @Override
     public void reset() {
-        ppuCtrl   = 0;
-        ppuMask   = 0;
+        ppuCtrl = 0;
+        ppuMask = 0;
         ppuStatus = 0;
-        oamAddr   = 0;
+        oamAddr = 0;
         ppuScroll = 0;
-        ppuAddr   = 0;
-        ppuData   = 0;
+        ppuAddr = 0;
+        ppuData = 0;
 
-        vRamAddr      = 0;
-        tRamAddr      = 0;
-        fineX         = 0;
-        addressLatch  = 0;
-        dataBuffer    = 0;
+        vRamAddr = 0;
+        tRamAddr = 0;
+        fineX = 0;
+        addressLatch = 0;
+        dataBuffer = 0;
 
-        scanline  = 0;
-        cycle     = 0;
-        oddFrame  = false;
+        scanline = 0;
+        cycle = 0;
+        oddFrame = false;
 
         nmiOccurred = false;
-        nmiOutput   = false;
+        nmiOutput = false;
         nmiPrevious = false;
 
         for (int i = 0; i < 8; i++) {
-            spriteX[i]         = 0xFF;
-            spriteY[i]         = 0xFF;
-            spriteTile[i]      = 0xFF;
+            spriteX[i] = 0xFF;
+            spriteY[i] = 0xFF;
+            spriteTile[i] = 0xFF;
             spriteAttribute[i] = 0xFF;
-            spriteDataLow[i]   = 0;
-            spriteDataHigh[i]  = 0;
+            spriteDataLow[i] = 0;
+            spriteDataHigh[i] = 0;
         }
         spriteCount = 0;
 
-        bgNextTileId        = 0;
+        bgNextTileId = 0;
         bgNextTileAttribute = 0;
-        bgNextTileLow       = 0;
-        bgNextTileHigh      = 0;
-        bgShifterPatternLow     = 0;
-        bgShifterPatternHigh    = 0;
-        bgShifterAttributeLow   = 0;
-        bgShifterAttributeHigh  = 0;
+        bgNextTileLow = 0;
+        bgNextTileHigh = 0;
+        bgShifterPatternLow = 0;
+        bgShifterPatternHigh = 0;
+        bgShifterAttributeLow = 0;
+        bgShifterAttributeHigh = 0;
     }
 
     @Override
@@ -149,10 +149,10 @@ public class PPUImpl implements PPU {
             case 0x7: { // PPUDATA
                 int data;
                 if (vRamAddr <= 0x3EFF) {
-                    data       = dataBuffer;
+                    data = dataBuffer;
                     dataBuffer = ppuRead(vRamAddr);
                 } else {
-                    data       = ppuRead(vRamAddr);
+                    data = ppuRead(vRamAddr);
                 }
                 vRamAddr += ((ppuCtrl & 0x04) == 0x04) ? 32 : 1;
                 return data;
@@ -251,7 +251,7 @@ public class PPUImpl implements PPU {
 
     private int mirrorAddress(int address) {
         address &= 0x2FFF;
-        int table  = (address >> 10) & 0x03;
+        int table = (address >> 10) & 0x03;
         int offset = address & 0x03FF;
 
         table = (table & 0x01) | ((table & 0x02) >> 1);
@@ -315,29 +315,29 @@ public class PPUImpl implements PPU {
                 }
                 if (cycle == 257) {
                     for (int i = 0; i < 8; i++) {
-                        spriteX[i]         = 0xFF;
-                        spriteY[i]         = 0xFF;
-                        spriteTile[i]      = 0xFF;
+                        spriteX[i] = 0xFF;
+                        spriteY[i] = 0xFF;
+                        spriteTile[i] = 0xFF;
                         spriteAttribute[i] = 0xFF;
-                        spriteDataLow[i]   = 0;
-                        spriteDataHigh[i]  = 0;
+                        spriteDataLow[i] = 0;
+                        spriteDataHigh[i] = 0;
                     }
-                    spriteCount   = 0;
-                    int oamIndex  = 0;
+                    spriteCount = 0;
+                    int oamIndex = 0;
                     boolean spriteZeroNext = false;
 
                     while (oamIndex < 64 && spriteCount < 8) {
-                        int y          = oam.read(oamIndex * 4);
+                        int y = oam.read(oamIndex * 4);
                         int nextScanln = scanline + 1;
                         if (nextScanln >= y && nextScanln < (y + ((ppuCtrl & 0x20) == 0x20 ? 16 : 8))) {
                             if (oamIndex == 0) {
                                 spriteZeroNext = true;
                             }
 
-                            spriteY[spriteCount]         = y;
-                            spriteTile[spriteCount]      = oam.read(oamIndex * 4 + 1);
+                            spriteY[spriteCount] = y;
+                            spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
                             spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
-                            spriteX[spriteCount]         = oam.read(oamIndex * 4 + 3);
+                            spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
 
                             int tileAddr;
                             int row = nextScanln - y;
@@ -351,11 +351,11 @@ public class PPUImpl implements PPU {
                                 tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
                             }
 
-                            spriteDataLow[spriteCount]  = ppuRead(tileAddr);
+                            spriteDataLow[spriteCount] = ppuRead(tileAddr);
                             spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
 
                             if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
-                                spriteDataLow[spriteCount]  = reverseBits(spriteDataLow[spriteCount]);
+                                spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
                                 spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
                             }
 
@@ -370,24 +370,24 @@ public class PPUImpl implements PPU {
                 }
 
                 if (cycle >= 1 && cycle <= 256 && scanline >= 0 && scanline < 240) {
-                    int bgPixel   = 0;
+                    int bgPixel = 0;
                     int bgPalette = 0;
 
                     if ((ppuMask & 0x08) != 0) {
                         if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
-                            int bitMux  = 0x8000 >> fineX;
+                            int bitMux = 0x8000 >> fineX;
 
-                            int p0 = (bgShifterPatternLow  & bitMux) > 0 ? 1 : 0;
+                            int p0 = (bgShifterPatternLow & bitMux) > 0 ? 1 : 0;
                             int p1 = (bgShifterPatternHigh & bitMux) > 0 ? 1 : 0;
                             bgPixel = p0 | (p1 << 1);
 
-                            int pal0 = (bgShifterAttributeLow  & bitMux) > 0 ? 1 : 0;
+                            int pal0 = (bgShifterAttributeLow & bitMux) > 0 ? 1 : 0;
                             int pal1 = (bgShifterAttributeHigh & bitMux) > 0 ? 1 : 0;
                             bgPalette = pal0 | (pal1 << 1);
                         }
                     }
 
-                    int fpixel   = 0;
+                    int fpixel = 0;
                     int fpalette = 0;
                     int fpriority = 0;
 
@@ -395,7 +395,7 @@ public class PPUImpl implements PPU {
                         if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
                             for (int i = 0; i < spriteCount; i++) {
                                 if (spriteX[i] == 0) {
-                                    int fp  = ((spriteDataLow[i]  & 0x80) > 0 ? 1 : 0);
+                                    int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
                                     fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
                                     fpalette = (spriteAttribute[i] & 0x03) + 4;
                                     fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0;
@@ -413,36 +413,36 @@ public class PPUImpl implements PPU {
                                 if (spriteX[i] > 0) {
                                     spriteX[i]--;
                                 } else {
-                                    spriteDataLow[i]  <<= 1;
+                                    spriteDataLow[i] <<= 1;
                                     spriteDataHigh[i] <<= 1;
                                 }
                             }
                         }
                     }
 
-                    int pixel   = 0;
+                    int pixel = 0;
                     int palette = 0;
 
                     if (bgPixel == 0 && fpixel == 0) {
-                        pixel   = 0;
+                        pixel = 0;
                         palette = 0;
                     } else if (bgPixel == 0 && fpixel > 0) {
-                        pixel   = fpixel;
+                        pixel = fpixel;
                         palette = fpalette;
                     } else if (bgPixel > 0 && fpixel == 0) {
-                        pixel   = bgPixel;
+                        pixel = bgPixel;
                         palette = bgPalette;
                     } else {
                         if (fpriority == 1) {
-                            pixel   = fpixel;
+                            pixel = fpixel;
                             palette = fpalette;
                         } else {
-                            pixel   = bgPixel;
+                            pixel = bgPixel;
                             palette = bgPalette;
                         }
                     }
 
-                    int colorAddr  = 0x3F00 | (palette << 2) | pixel;
+                    int colorAddr = 0x3F00 | (palette << 2) | pixel;
                     int colorIndex = ppuRead(colorAddr) & 0x3F;
 
                     int pixelIndex = (scanline * 256) + (cycle - 1);
@@ -483,22 +483,22 @@ public class PPUImpl implements PPU {
     }
 
     // =====================================================================
-    // Helper methods -------------------------------------------------------
+    // Helper methods -------------------------------------------------------
     // =====================================================================
     private void updateShifters() {
         if ((ppuMask & 0x08) != 0) {
-            bgShifterPatternLow   <<= 1;
-            bgShifterPatternHigh  <<= 1;
+            bgShifterPatternLow <<= 1;
+            bgShifterPatternHigh <<= 1;
             bgShifterAttributeLow <<= 1;
-            bgShifterAttributeHigh<<= 1;
+            bgShifterAttributeHigh <<= 1;
         }
     }
 
     private void loadBackgroundShifters() {
-        bgShifterPatternLow  = (bgShifterPatternLow  & 0xFF00) | bgNextTileLow;
+        bgShifterPatternLow = (bgShifterPatternLow & 0xFF00) | bgNextTileLow;
         bgShifterPatternHigh = (bgShifterPatternHigh & 0xFF00) | bgNextTileHigh;
 
-        bgShifterAttributeLow  = (bgShifterAttributeLow  & 0xFF00) | ((bgNextTileAttribute & 0x01) != 0 ? 0xFF : 0x00);
+        bgShifterAttributeLow = (bgShifterAttributeLow & 0xFF00) | ((bgNextTileAttribute & 0x01) != 0 ? 0xFF : 0x00);
         bgShifterAttributeHigh = (bgShifterAttributeHigh & 0xFF00) | ((bgNextTileAttribute & 0x02) != 0 ? 0xFF : 0x00);
     }
 
