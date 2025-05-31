@@ -1,4 +1,4 @@
-import ppu.PPUImpl;
+import ppu.PPU;
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,13 +13,13 @@ public class EmulatorUI extends JFrame {
     private static final int HEIGHT = 240;
 
     private final Canvas canvas;
-    private final PPUImpl ppu;
+    private final PPU ppu;
     private final CPU cpu;
     private final Controller controller;
 
     private boolean isRunning = false;
 
-    public EmulatorUI(CPU cpu, PPUImpl ppu) {
+    public EmulatorUI(CPU cpu, PPU ppu) {
         this.cpu = cpu;
         this.ppu = ppu;
         this.controller = new Controller();

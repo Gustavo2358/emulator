@@ -1,5 +1,7 @@
 package ppu;
 
+import java.awt.*;
+
 public interface PPU {
     int read(int address);
 
@@ -9,4 +11,5 @@ public interface PPU {
 
     void runCycle();
 
+    Image getFrameBuffer();
 }

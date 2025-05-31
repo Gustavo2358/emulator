@@ -5,9 +5,6 @@ import javax.swing.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class Main {
     public static void main(String[] args) {
@@ -19,11 +16,11 @@ public class Main {
         String romPath = args[0];
         byte[] romData = loadRomFile(romPath);
 
-        var cartridge = Cartridge.fromNesFile(romData);
-        var wram = new WRAMImpl();
-        var ppu = new PPUImpl();
-        var bus = new CPUBus(wram, cartridge, ppu);
-        var cpu = new CPU(bus);
+        Cartridge cartridge = Cartridge.fromNesFile(romData);
+        WRAMImpl wram = new WRAMImpl();
+        PPU ppu = new PPUImpl();
+        CPUBus bus = new CPUBus(wram, cartridge, ppu);
+        CPU cpu = new CPU(bus);
 
         cpu.fetchProgramCounter();
 
