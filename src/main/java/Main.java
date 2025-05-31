@@ -37,19 +37,6 @@ public class Main {
         });
     }
 
-    private static void scheduleEmulation(CPU cpu, PPU ppu) {
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-        long cycleDuration = 559; // nanoseconds for NTSC
-
-        scheduler.scheduleAtFixedRate(() -> {
-            cpu.runCycle();
-            ppu.runCycle();
-            ppu.runCycle();
-            ppu.runCycle();
-        }, 0, cycleDuration, TimeUnit.NANOSECONDS);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(scheduler::shutdownNow));
-    }
 
     private static byte[] loadRomFile(String filePath) {
         try {
