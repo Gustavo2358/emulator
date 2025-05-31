@@ -91,7 +91,7 @@ public class CPU {
         int highByte = bus.read(0xFFFD);
         int lowByte = bus.read(0xFFFC);
         int resetVector = (highByte << 8) | lowByte;
-//        System.out.printf("reset vector value: 0x%x\n", resetVector);
+        System.out.printf("reset vector value: 0x%x\n", resetVector);
         this.pc = resetVector;
     }
 
