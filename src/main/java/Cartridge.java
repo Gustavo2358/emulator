@@ -142,7 +142,7 @@ public class Cartridge {
         return mapper.getId();
     }
 
-    public static Cartridge fromNesFile(byte[] fileData) {
+public static Cartridge fromNesFile(byte[] fileData) {
         logger.info("Processing NES ROM file of size " + fileData.length + " bytes");
 
         // Validate iNES header
@@ -175,6 +175,7 @@ public class Cartridge {
         logger.info(String.format("ROM features: Vertical mirroring: %b, Battery-backed RAM: %b, Trainer: %b, Four-screen VRAM: %b",
                     verticalMirroring, hasBatteryBackedRAM, hasTrainer, fourScreenVRAM));
 
+        int headerSize = 16;
         int trainerSize = hasTrainer ? 512 : 0;
         int prgRomSize = prgRomSizeIn16kb * PRG_ROM_UNIT_SIZE;
         int chrRomSize = chrRomSizeIn8kb * CHR_ROM_UNIT_SIZE;
@@ -182,7 +183,14 @@ public class Cartridge {
         logger.info(String.format("Memory layout: PRG ROM: %d bytes, CHR ROM: %d bytes, Trainer: %d bytes",
                     prgRomSize, chrRomSize, trainerSize));
 
-        int headerSize = 16;
+        // Validate that the file is large enough to contain all the data specified in the header
+        int expectedTotalSize = headerSize + trainerSize + prgRomSize + chrRomSize;
+        if (fileData.length < expectedTotalSize) {
+            logger.severe("File data is smaller than expected based on header information. Expected: " +
+                          expectedTotalSize + ", Got: " + fileData.length);
+            throw new IllegalArgumentException("NES ROM file is truncated or header is inconsistent with file size.");
+        }
+
         int[] prgRom = new int[prgRomSize];
         int prgStart = headerSize + trainerSize;
         logger.info("Loading PRG ROM data from offset " + prgStart);
