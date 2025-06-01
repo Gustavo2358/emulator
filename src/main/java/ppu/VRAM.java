@@ -1,16 +1,14 @@
 package ppu;
 
 public class VRAM {
-    private final int[] vramData = new int[0x2000]; // 8KB of VRAM
+    // Should be 2KB for two nametables
+    private final int[] vramData = new int[0x800]; // 2KB (2048 bytes)
 
-    public int read(int address) {
-        // Map PPU address to internal array index
-        // e.g., PPU 0x2000 -> vramData[0], PPU 0x2FFF -> vramData[0xFFF], PPU 0x3FFF -> vramData[0x1FFF]
-        return vramData[address & 0x1FFF];
+    public int read(int address) { // address is the 0-indexed internal VRAM address
+        return vramData[address & 0x07FF]; // Ensure it's within 2KB bounds
     }
 
-    public void write(int address, int value) {
-        // Map PPU address to internal array index
-        vramData[address & 0x1FFF] = value;
+    public void write(int address, int value) { // address is the 0-indexed internal VRAM address
+        vramData[address & 0x07FF] = value; // Ensure it's within 2KB bounds
     }
 }

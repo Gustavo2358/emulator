@@ -154,6 +154,7 @@ public class PPUImpl implements PPU {
                 int result = (ppuStatus & 0xE0) | (dataBuffer & 0x1F);
                 ppuStatus &= ~0x80;
                 addressLatch = 0;
+                nmiOccurred = false;
                 return result;
             }
             case 0x4: // OAMDATA
@@ -229,41 +230,88 @@ public class PPUImpl implements PPU {
     // =====================================================================
     // Internal PPU read/write helpers
     // =====================================================================
-    private int ppuRead(int address) {
-        address &= 0x3FFF; // PPU addresses are 14-bit
+    private int ppuRead(int address) { // PPU bus address 0x0000 - 0x3FFF
+        address &= 0x3FFF;
+        if (address <= 0x1FFF) { // Pattern Tables ($0000-$1FFF)
+            return this.cartridge.ppuRead(address);
+        } else if (address >= 0x2000 && address <= 0x3EFF) { // Nametable region ($2000-$3EFF, mirrors $3000-$3EFF are to $2000-$2EFF)
+            int vramIndex = 0;
+            // Normalize address to $2000-$2FFF range first for logical table determination
+            int normalizedAddress = 0x2000 | (address & 0x0FFF);
+            int logicalTable = (normalizedAddress >> 10) & 3; // 0, 1, 2, or 3
+            int offsetInTable = normalizedAddress & 0x03FF;   // Offset within a 1KB nametable
 
-        if (address <= 0x1FFF) { // Pattern tables $0000-$1FFF
-            return this.cartridge.ppuRead(address); // Use cartridge for pattern table reads
-        } else if (address <= 0x3EFF) { // Nametables and their mirrors $2000-$3EFF
-            int mirroredAddr = mirrorAddress(address);
-            return vram.read(mirroredAddr);
-        } else { // Palette RAM $3F00-$3FFF (implicitly 0x3F00-0x3FFF due to previous checks)
+            switch (cartridge.getMirroringMode()) {
+                case HORIZONTAL: // Tables 0 & 1 map to VRAM NT0; Tables 2 & 3 map to VRAM NT1
+                    if (logicalTable == 0 || logicalTable == 1) {
+                        vramIndex = offsetInTable; // Maps to physical VRAM NT0 (0x0000-0x03FF)
+                    } else { // logicalTable == 2 || logicalTable == 3
+                        vramIndex = offsetInTable + 0x0400; // Maps to physical VRAM NT1 (0x0400-0x07FF)
+                    }
+                    break;
+                case VERTICAL:   // Tables 0 & 2 map to VRAM NT0; Tables 1 & 3 map to VRAM NT1
+                    if (logicalTable == 0 || logicalTable == 2) {
+                        vramIndex = offsetInTable; // Maps to physical VRAM NT0
+                    } else { // logicalTable == 1 || logicalTable == 3
+                        vramIndex = offsetInTable + 0x0400; // Maps to physical VRAM NT1
+                    }
+                    break;
+                case FOUR_SCREEN:
+                    // This requires 4KB of VRAM, typically on cartridge.
+                    // For internal 2KB VRAM, this might alias or need specific cart handling.
+                    // A simple approach for internal 2KB is to map based on lowest 2 tables or a default.
+                    // Or, rely on cartridge to provide memory if it's true 4-screen.
+                    // For now, let's assume it will try to map within the 2KB, potentially aliasing.
+                    vramIndex = normalizedAddress & 0x07FF; // Basic mapping for 2KB if no cart VRAM for 4-screen
+                    break;
+                default: // Should not happen with valid MirroringMode enum
+                    vramIndex = normalizedAddress & 0x07FF;
+            }
+            return vram.read(vramIndex); // vram.read expects 0x000-0x7FF index
+        } else if (address >= 0x3F00 && address <= 0x3FFF) { // Palette RAM ($3F00-$3FFF)
             int paletteIndex = address & 0x1F;
-            // Handle PPU-specific palette mirroring:
+            // Palette Mirrors: $3F10, $3F14, $3F18, $3F1C mirror $3F00, $3F04, $3F08, $3F0C
             if (paletteIndex == 0x10 || paletteIndex == 0x14 || paletteIndex == 0x18 || paletteIndex == 0x1C) {
                 paletteIndex -= 0x10;
             }
-            return paletteRam.read(paletteIndex) & 0x3F;
+            return paletteRam.read(paletteIndex) & 0x3F; // NES palette colors are 6-bit
         }
+        return 0; // Should be unreachable if PPU address space is fully handled
     }
 
-    private void ppuWrite(int address, int value) {
-        address &= 0x3FFF; // PPU addresses are 14-bit
+    private void ppuWrite(int address, int value) { // PPU bus address 0x0000 - 0x3FFF
+        address &= 0x3FFF;
+        if (address <= 0x1FFF) { // Pattern Tables
+            this.cartridge.ppuWrite(address, value);
+        } else if (address >= 0x2000 && address <= 0x3EFF) { // Nametable region
+            int vramIndex = 0;
+            int normalizedAddress = 0x2000 | (address & 0x0FFF);
+            int logicalTable = (normalizedAddress >> 10) & 3;
+            int offsetInTable = normalizedAddress & 0x03FF;
 
-        if (address <= 0x1FFF) { // Pattern tables $0000-$1FFF
-            this.cartridge.ppuWrite(address, value); // Use cartridge for pattern table writes
-        } else if (address <= 0x3EFF) { // Nametables and their mirrors $2000-$3EFF
-            int mirroredAddr = mirrorAddress(address);
-            vram.write(mirroredAddr, value);
-        } else { // Palette RAM $3F00-$3FFF (implicitly 0x3F00-0x3FFF due to previous checks)
+            switch (cartridge.getMirroringMode()) {
+                case HORIZONTAL:
+                    if (logicalTable == 0 || logicalTable == 1) vramIndex = offsetInTable;
+                    else vramIndex = offsetInTable + 0x0400;
+                    break;
+                case VERTICAL:
+                    if (logicalTable == 0 || logicalTable == 2) vramIndex = offsetInTable;
+                    else vramIndex = offsetInTable + 0x0400;
+                    break;
+                case FOUR_SCREEN:
+                    vramIndex = normalizedAddress & 0x07FF; // Simplified for 2KB internal VRAM
+                    break;
+                default:
+                    vramIndex = normalizedAddress & 0x07FF;
+            }
+            vram.write(vramIndex, value);
+        } else if (address >= 0x3F00 && address <= 0x3FFF) { // Palette RAM
             int paletteIndex = address & 0x1F;
-            // Handle PPU-specific palette mirroring:
             if (paletteIndex == 0x10 || paletteIndex == 0x14 || paletteIndex == 0x18 || paletteIndex == 0x1C) {
                 paletteIndex -= 0x10;
             }
             paletteRam.write(paletteIndex, value);
         }
-        // Writes to addresses outside these ranges are typically ignored by PPU hardware.
     }
 
     private int mirrorAddress(int address) {
@@ -283,10 +331,11 @@ public class PPUImpl implements PPU {
         if (scanline <= 261) {
             if (cycle == 1) {
                 ppuStatus &= ~0xE0;
+                nmiOccurred = false;
             }
-            if (cycle >= 280 && cycle <= 304) {
+            if (scanline == 261 && cycle >= 280 && cycle <= 304) {
                 if ((ppuMask & 0x18) != 0) {
-                    vRamAddr = (vRamAddr & 0x7BE0) | (tRamAddr & 0x7BE0);
+                    vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
                 }
             }
 
