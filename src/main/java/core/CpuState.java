@@ -1,3 +1,5 @@
+package core;
+
 public class CpuState {
     private final int pc, sp, a, x, y;
     private final boolean carry, zero, interruptDisable, decimal, overflow, negative;

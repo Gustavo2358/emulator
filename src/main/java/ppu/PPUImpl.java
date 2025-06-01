@@ -3,6 +3,10 @@ package ppu;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 
+import core.CPU;
+import core.Cartridge; // Added import
+
+
 public class PPUImpl implements PPU {
     // PPU registers ---------------------------------------------------------
     private int ppuCtrl;   // $2000 – PPUCTRL
@@ -34,6 +38,8 @@ public class PPUImpl implements PPU {
     private final VRAM vram;
     private final OAM oam;
     private final PaletteRam paletteRam;
+    private final Cartridge cartridge; // Added core.Cartridge field
+    private CPU cpu; // Added core.CPU field (not final, to be set by setter)
 
     // Frame buffer ---------------------------------------------------------
     private final BufferedImage frameBuffer;
@@ -71,15 +77,21 @@ public class PPUImpl implements PPU {
     private int bgShifterAttributeHigh;
 
     // ---------------------------------------------------------------------
-    public PPUImpl() {
-        vram = new VRAM();
-        oam = new OAM();
-        paletteRam = new PaletteRam();
+    public PPUImpl(Cartridge cartridge) { // Modified constructor
+        this.vram = new VRAM();
+        this.oam = new OAM();
+        this.paletteRam = new PaletteRam();
+        this.cartridge = cartridge; // Initialize cartridge
+        // this.cpu will be set via setter
 
         frameBuffer = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
         frameData = ((DataBufferInt) frameBuffer.getRaster().getDataBuffer()).getData();
 
         reset();
+    }
+
+    public void setCpu(CPU cpu) { // Added setter for core.CPU
+        this.cpu = cpu;
     }
 
     // =====================================================================
@@ -218,35 +230,40 @@ public class PPUImpl implements PPU {
     // Internal PPU read/write helpers
     // =====================================================================
     private int ppuRead(int address) {
-        address &= 0x3FFF;
+        address &= 0x3FFF; // PPU addresses are 14-bit
 
-        if (address <= 0x1FFF) {
-            return vram.read(address);
-        } else if (address <= 0x3EFF) {
+        if (address <= 0x1FFF) { // Pattern tables $0000-$1FFF
+            return this.cartridge.ppuRead(address); // Use cartridge for pattern table reads
+        } else if (address <= 0x3EFF) { // Nametables and their mirrors $2000-$3EFF
             int mirroredAddr = mirrorAddress(address);
             return vram.read(mirroredAddr);
-        } else if (address == 0x3F00) {
-            return 0x10;
-        } else if ((address & 0x03) == 0) {
-            address &= 0x0010;
+        } else { // Palette RAM $3F00-$3FFF (implicitly 0x3F00-0x3FFF due to previous checks)
+            int paletteIndex = address & 0x1F;
+            // Handle PPU-specific palette mirroring:
+            if (paletteIndex == 0x10 || paletteIndex == 0x14 || paletteIndex == 0x18 || paletteIndex == 0x1C) {
+                paletteIndex -= 0x10;
+            }
+            return paletteRam.read(paletteIndex) & 0x3F;
         }
-        return paletteRam.read(address);
     }
 
     private void ppuWrite(int address, int value) {
-        address &= 0x3FFF;
+        address &= 0x3FFF; // PPU addresses are 14-bit
 
-        if (address <= 0x1FFF) {
-            vram.write(address, value);
-        } else if (address <= 0x3EFF) {
+        if (address <= 0x1FFF) { // Pattern tables $0000-$1FFF
+            this.cartridge.ppuWrite(address, value); // Use cartridge for pattern table writes
+        } else if (address <= 0x3EFF) { // Nametables and their mirrors $2000-$3EFF
             int mirroredAddr = mirrorAddress(address);
             vram.write(mirroredAddr, value);
-        } else if (address == 0x3F00) {
-            address = 0x0010;
-        } else if ((address & 0x03) == 0) {
-            address &= 0x0010;
+        } else { // Palette RAM $3F00-$3FFF (implicitly 0x3F00-0x3FFF due to previous checks)
+            int paletteIndex = address & 0x1F;
+            // Handle PPU-specific palette mirroring:
+            if (paletteIndex == 0x10 || paletteIndex == 0x14 || paletteIndex == 0x18 || paletteIndex == 0x1C) {
+                paletteIndex -= 0x10;
+            }
+            paletteRam.write(paletteIndex, value);
         }
-        paletteRam.write(address, value);
+        // Writes to addresses outside these ranges are typically ignored by PPU hardware.
     }
 
     private int mirrorAddress(int address) {
@@ -324,16 +341,12 @@ public class PPUImpl implements PPU {
                     }
                     spriteCount = 0;
                     int oamIndex = 0;
-                    boolean spriteZeroNext = false;
 
                     while (oamIndex < 64 && spriteCount < 8) {
                         int y = oam.read(oamIndex * 4);
-                        int nextScanln = scanline + 1;
-                        if (nextScanln >= y && nextScanln < (y + ((ppuCtrl & 0x20) == 0x20 ? 16 : 8))) {
-                            if (oamIndex == 0) {
-                                spriteZeroNext = true;
-                            }
-
+                        int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
+                        int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
+                        if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
                             spriteY[spriteCount] = y;
                             spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
                             spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
@@ -342,7 +355,7 @@ public class PPUImpl implements PPU {
                             int tileAddr;
                             int row = nextScanln - y;
                             if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
-                                row = 7 - row;
+                                row = spriteHeight - 1 - row;
                             }
 
                             if ((ppuCtrl & 0x20) == 0) {
@@ -398,13 +411,14 @@ public class PPUImpl implements PPU {
                                     int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
                                     fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
                                     fpalette = (spriteAttribute[i] & 0x03) + 4;
-                                    fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0;
+                                    fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0; // 1 if sprite behind BG, 0 if in front
 
-                                    if (fp != 0) {
-                                        if (i == 0 && bgPixel != 0 && cycle != 256) {
+                                    if (fp != 0) { // If sprite pixel is not transparent
+                                        fpixel = fp; // Assign the calculated sprite pixel to fpixel
+                                        if (i == 0 && bgPixel != 0 && cycle != 256) { // Sprite 0 hit detection
                                             ppuStatus |= 0x40;
                                         }
-                                        break;
+                                        break; // Found first opaque sprite pixel for this X
                                     }
                                 }
                             }
@@ -420,25 +434,32 @@ public class PPUImpl implements PPU {
                         }
                     }
 
-                    int pixel = 0;
-                    int palette = 0;
+                    int pixel;
+                    int palette;
 
-                    if (bgPixel == 0 && fpixel == 0) {
+                    boolean bgIsTransparent = (bgPixel == 0);
+                    boolean spriteIsTransparent = (fpixel == 0);
+
+                    if (bgIsTransparent && spriteIsTransparent) {
+                        // Both background and sprite are transparent
                         pixel = 0;
                         palette = 0;
-                    } else if (bgPixel == 0 && fpixel > 0) {
+                    } else if (bgIsTransparent && !spriteIsTransparent) {
+                        // Background is transparent, sprite is visible
                         pixel = fpixel;
                         palette = fpalette;
-                    } else if (bgPixel > 0 && fpixel == 0) {
+                    } else if (!bgIsTransparent && spriteIsTransparent) {
+                        // Background is visible, sprite is transparent
                         pixel = bgPixel;
                         palette = bgPalette;
                     } else {
-                        if (fpriority == 1) {
-                            pixel = fpixel;
-                            palette = fpalette;
-                        } else {
+                        // Both background and sprite are visible, apply priority
+                        if (fpriority == 1) { // Sprite priority bit 5 is set (1 means behind background)
                             pixel = bgPixel;
                             palette = bgPalette;
+                        } else { // Sprite priority bit 5 is clear (0 means in front of background)
+                            pixel = fpixel;
+                            palette = fpalette;
                         }
                     }
 
@@ -454,9 +475,12 @@ public class PPUImpl implements PPU {
         }
 
         if (scanline == 241 && cycle == 1) {
-            ppuStatus |= 0x80;
-            if ((ppuCtrl & 0x80) != 0) {
-                nmiOccurred = true;
+            ppuStatus |= 0x80; // Set VBlank flag
+            if ((ppuCtrl & 0x80) != 0) { // If NMI is enabled in PPUCTRL
+                this.nmiOccurred = true; // PPU's internal flag that NMI condition happened
+                if (this.cpu != null) {
+                    this.cpu.triggerNMI(); // Signal the core.CPU
+                }
             }
         }
 

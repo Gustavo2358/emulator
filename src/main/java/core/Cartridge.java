@@ -1,3 +1,5 @@
+package core;
+
 import mapper.Mapper;
 import java.util.logging.Logger;
 
@@ -68,17 +70,17 @@ public class Cartridge {
         Here's why:
 
 
-        Encapsulation of Mapper Logic: Mappers can be complex. They don't just translate addresses; many have internal registers that control bank switching, mirroring, IRQs, etc. These registers are typically accessed via writes to specific addresses in the CPU's address space (often in the $8000-$FFFF range for PRG ROM control). If the mapper handles the write operations, it can directly process these register writes and update its internal state.
-        Handling Writes to ROM Space: CPU writes to the PRG ROM address range ($8000-$FFFF) are often intended for mapper registers. If the Cartridge class simply tries to write to its prgRom array (which should be read-only), this logic is missed. A Mapper handling the write can distinguish between an attempt to write to ROM (which it might ignore) and a write to one of its control registers.
-        PRG RAM Control: Some mappers also control PRG RAM banking or enable/disable PRG RAM. If the mapper handles reads/writes to the PRG RAM space ($6000-$7FFF), it can implement this logic. In your current Cartridge code, PRG RAM access bypasses the mapper.
-        Simplified Cartridge Class: The Cartridge class can become simpler, primarily acting as a container for the ROM/RAM data and the mapper instance. It would delegate memory access operations to the mapper.
+        Encapsulation of Mapper Logic: Mappers can be complex. They don't just translate addresses; many have internal registers that control bank switching, mirroring, IRQs, etc. These registers are typically accessed via writes to specific addresses in the core.CPU's address space (often in the $8000-$FFFF range for PRG ROM control). If the mapper handles the write operations, it can directly process these register writes and update its internal state.
+        Handling Writes to ROM Space: core.CPU writes to the PRG ROM address range ($8000-$FFFF) are often intended for mapper registers. If the core.Cartridge class simply tries to write to its prgRom array (which should be read-only), this logic is missed. A Mapper handling the write can distinguish between an attempt to write to ROM (which it might ignore) and a write to one of its control registers.
+        PRG RAM Control: Some mappers also control PRG RAM banking or enable/disable PRG RAM. If the mapper handles reads/writes to the PRG RAM space ($6000-$7FFF), it can implement this logic. In your current core.Cartridge code, PRG RAM access bypasses the mapper.
+        Simplified core.Cartridge Class: The core.Cartridge class can become simpler, primarily acting as a container for the ROM/RAM data and the mapper instance. It would delegate memory access operations to the mapper.
         To implement this, you would typically:
 
 
         Modify the Mapper interface to include methods like cpuRead(int address), cpuWrite(int address, int value), ppuRead(int address), and ppuWrite(int address, int value).
-        Ensure that Mapper implementations have access to the necessary memory arrays (e.g., by passing them in the constructor or passing a reference to the Cartridge itself).
-        Update the Cartridge class to call these methods on its mapper instance for the relevant address ranges.
-        Ensure the CPUBus correctly routes all relevant CPU reads/writes (including those to $8000-$FFFF for mapper registers) to the Cartridge, which then delegates to the Mapper. Your current CPUBus does not seem to pass writes in the $8000-$FFFF range to the cartridge.
+        Ensure that Mapper implementations have access to the necessary memory arrays (e.g., by passing them in the constructor or passing a reference to the core.Cartridge itself).
+        Update the core.Cartridge class to call these methods on its mapper instance for the relevant address ranges.
+        Ensure the core.CPUBus correctly routes all relevant core.CPU reads/writes (including those to $8000-$FFFF for mapper registers) to the core.Cartridge, which then delegates to the Mapper. Your current core.CPUBus does not seem to pass writes in the $8000-$FFFF range to the cartridge.
         While your current approach (mapper for address translation, cartridge for data access) can work for simple mappers like NROM, it becomes less tenable for more complex mappers. Delegating full read/write handling to the mapper provides a cleaner and more extensible design.
      */
     public void cpuWrite(int address, int value) {
@@ -223,7 +225,7 @@ public static Cartridge fromNesFile(byte[] fileData) {
         logger.info("Created mapper: " + mapper.getClass().getSimpleName() + " (ID: " + mapperId + ")");
 
         Cartridge cartridge = new Cartridge(prgRom, chrRom, mapper, hasBatteryBackedRAM, mirroringMode);
-        logger.info("Cartridge loaded successfully");
+        logger.info("core.Cartridge loaded successfully");
 
         return cartridge;
     }

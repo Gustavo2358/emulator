@@ -1,3 +1,6 @@
+import core.Bus;
+import core.WRAM;
+
 public class MockBus implements Bus {
 
     private WRAM wram = new MockWRAM();

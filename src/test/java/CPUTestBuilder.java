@@ -1,10 +1,12 @@
+import core.*;
+
 public class CPUTestBuilder {
 
     private final WRAM wram;
     private final CpuState.Builder cpuStateBuilder;
 
     public CPUTestBuilder() {
-        // Initialize WRAM with a 64K memory array.
+        // Initialize core.WRAM with a 64K memory array.
         wram = new MockWRAM(new int[0x10000]);
         cpuStateBuilder = new CpuState.Builder();
     }
@@ -12,7 +14,7 @@ public class CPUTestBuilder {
     /**
      * Sets the reset vector in memory.
      *
-     * @param address The address where the CPU will start execution.
+     * @param address The address where the core.CPU will start execution.
      * @return The builder instance.
      */
     public CPUTestBuilder withResetVector(int address) {
@@ -175,10 +177,10 @@ public class CPUTestBuilder {
     }
 
     /**
-     * Builds the CPU and runs it for the given number of cycles.
+     * Builds the core.CPU and runs it for the given number of cycles.
      *
-     * @param cycles The number of CPU cycles to run.
-     * @return The CPU after running the specified cycles.
+     * @param cycles The number of core.CPU cycles to run.
+     * @return The core.CPU after running the specified cycles.
      */
     public CPU buildAndRun(int cycles) {
         Bus bus = new MockBus(wram);
@@ -186,7 +188,7 @@ public class CPUTestBuilder {
         EmulatorState state = new EmulatorState(cpuStateBuilder.build(), wram);
         cpu.loadState(state);
         cpu.fetchProgramCounter();
-        // Run the CPU for the specified number of cycles.
+        // Run the core.CPU for the specified number of cycles.
         for (int i = 0; i < cycles; i++) {
             cpu.runCycle();
         }
@@ -194,11 +196,11 @@ public class CPUTestBuilder {
     }
 
     /**
-     * Builds the CPU and runs it for the given number of cycles.
+     * Builds the core.CPU and runs it for the given number of cycles.
      *
-     * @param cycles The number of CPU cycles to run.
+     * @param cycles The number of core.CPU cycles to run.
      * @param bus The bus.
-     * @return The CPU after running the specified cycles.
+     * @return The core.CPU after running the specified cycles.
      */
     public CPU buildAndRun(int cycles, Bus bus) {
         bus.loadWRamState(wram);
@@ -206,7 +208,7 @@ public class CPUTestBuilder {
         EmulatorState state = new EmulatorState(cpuStateBuilder.build(), wram);
         cpu.loadState(state);
         cpu.fetchProgramCounter();
-        // Run the CPU for the specified number of cycles.
+        // Run the core.CPU for the specified number of cycles.
         for (int i = 0; i < cycles; i++) {
             cpu.runCycle();
         }

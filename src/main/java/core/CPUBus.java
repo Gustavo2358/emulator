@@ -1,3 +1,5 @@
+package core;
+
 import ppu.PPU;
 
 public class CPUBus implements Bus {
@@ -18,7 +20,7 @@ public class CPUBus implements Bus {
 
 @Override
 public int read(int address) {
-    if (address < 0x2000) { // $0000-$1FFF: WRAM
+    if (address < 0x2000) { // $0000-$1FFF: core.WRAM
         return wram.read(address);
     } else if (address < 0x4000) { // $2000-$3FFF: PPU registers
         return ppu.read(address);
@@ -28,13 +30,13 @@ public int read(int address) {
     } else if (address == 0x4014) { // OAMDMA
         // OAMDMA read (not implemented)
         return 0;
-    } else if (address == 0x4016) { // Controller 1
+    } else if (address == 0x4016) { // core.Controller 1
         return controller1.read();
-    } else if (address == 0x4017) { // Controller 2
+    } else if (address == 0x4017) { // core.Controller 2
         return controller2.read();
     } else if (address <= 0x5FFF) { // Expansion/cartridge space
         return cartridge.cpuRead(address);
-    } else if (address <= 0xFFFF) { // $6000-$FFFF: Cartridge
+    } else if (address <= 0xFFFF) { // $6000-$FFFF: core.Cartridge
         return cartridge.cpuRead(address);
     }
     return 0;
@@ -42,7 +44,7 @@ public int read(int address) {
 
 @Override
 public void write(int address, int value) {
-    if (address < 0x2000) { // $0000-$1FFF: WRAM
+    if (address < 0x2000) { // $0000-$1FFF: core.WRAM
         wram.write(address, value);
     } else if (address < 0x4000) { // $2000-$3FFF: PPU registers
         ppu.write(address, value);
@@ -56,7 +58,7 @@ public void write(int address, int value) {
         controller2.write(value);
     } else if (address <= 0x5FFF) { // Expansion/cartridge space
         cartridge.cpuWrite(address, value);
-    } else if (address <= 0xFFFF) { // $6000-$FFFF: Cartridge
+    } else if (address <= 0xFFFF) { // $6000-$FFFF: core.Cartridge
         cartridge.cpuWrite(address, value);
     }
 }

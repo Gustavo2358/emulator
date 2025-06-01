@@ -1,4 +1,4 @@
-import ppu.PPU;
+import core.*;
 import ppu.PPUImpl;
 
 import javax.swing.*;
@@ -18,9 +18,11 @@ public class Main {
 
         Cartridge cartridge = Cartridge.fromNesFile(romData);
         WRAMImpl wram = new WRAMImpl();
-        PPU ppu = new PPUImpl();
+        PPUImpl ppu = new PPUImpl(cartridge); // Pass cartridge to PPU constructor
         CPUBus bus = new CPUBus(wram, cartridge, ppu);
         CPU cpu = new CPU(bus);
+
+        ppu.setCpu(cpu); // Set core.CPU instance in PPU for NMI
 
         cpu.fetchProgramCounter();
 

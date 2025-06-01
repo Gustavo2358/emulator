@@ -1,3 +1,5 @@
+package core;
+
 public interface WRAM {
     int read(int address);
 

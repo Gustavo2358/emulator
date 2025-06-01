@@ -1,3 +1,5 @@
+package core;
+
 import java.util.Arrays;
 
 public class WRAMImpl implements WRAM {

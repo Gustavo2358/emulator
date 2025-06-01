@@ -1,3 +1,5 @@
+package core;
+
 import mapper.Mapper;
 import mapper.NROMMapper;
 

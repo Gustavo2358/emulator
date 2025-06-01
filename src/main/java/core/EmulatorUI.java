@@ -1,3 +1,5 @@
+package core;
+
 import ppu.PPU;
 
 import javax.swing.*;

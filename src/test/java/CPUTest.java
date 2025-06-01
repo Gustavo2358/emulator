@@ -1,3 +1,6 @@
+import core.Bus;
+import core.CPU;
+import core.CpuState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -75,7 +78,7 @@ class CPUTest {
 
         CPU cpu = new CPUTestBuilder()
                 .withResetVector(0x8000)
-                .withInstruction(0x8000, opCode, 0x10) // Instruction: LDA $10
+                .withInstruction(0x8000, opCode, 0x10) // core.Instruction: LDA $10
                 .withMemoryValue(0x0010, 0x42) // Set memory at address 0x0010 to 0x42
                 .buildAndRun(instructionCycles);
 
@@ -4506,7 +4509,7 @@ class CPUTest {
         // Typically, the initial SP is 0xFD; after three pushes it should be 0xFA.
         assertEquals(0xFA, stateAfterNMI.getSp(), "Stack pointer should be decremented by 3 after NMI");
 
-        // If CPU exposes the NMI flags (nmiPending and processingNMI), you could assert that they are false.
+        // If core.CPU exposes the NMI flags (nmiPending and processingNMI), you could assert that they are false.
         // For example:
         // assertFalse(cpu.isNMIPending(), "NMI pending flag should be cleared after servicing NMI");
         // assertFalse(cpu.isProcessingNMI(), "NMI processing flag should be cleared after NMI completes");

@@ -1,3 +1,5 @@
+package core;
+
 public interface Bus {
     int read(int address);
 

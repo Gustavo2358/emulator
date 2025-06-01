@@ -1,3 +1,5 @@
+import core.Cartridge;
+import core.MirroringMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -409,7 +411,7 @@ class CartridgeTest {
         mapper.mappedPrgAddress = SIXTEEN_KB - 1;
         assertEquals(0, cartridge.cpuRead(0x8000));
 
-        // Test boundary of CPU address range for PRG ROM
+        // Test boundary of core.CPU address range for PRG ROM
         assertEquals(0, cartridge.cpuRead(0x7FFF)); // Just below PRG ROM range
         assertEquals(0, cartridge.cpuRead(0x8000)); // Start of PRG ROM range
         assertEquals(0, cartridge.cpuRead(0xFFFF)); // End of PRG ROM range
@@ -467,20 +469,20 @@ class CartridgeTest {
 //    @Test
 //    void testFromNesFileWithDifferentMappers() {
 //        // Test NROM (mapper 0)
-//        byte[] nromRom = createMockNesRom(1, 1, 0x00, false, false, false, MirroringMode.HORIZONTAL);
-//        Cartridge nromCartridge = Cartridge.fromNesFile(nromRom);
+//        byte[] nromRom = createMockNesRom(1, 1, 0x00, false, false, false, core.MirroringMode.HORIZONTAL);
+//        core.Cartridge nromCartridge = core.Cartridge.fromNesFile(nromRom);
 //        assertEquals(0, nromCartridge.getMapperId());
 //
 //        // Test MMC1 (mapper 1) - set bits 4-7 of flags6 and bits 4-7 of flags7
-//        byte[] mmc1Rom = createMockNesRom(1, 1, 0x00, false, false, false, MirroringMode.HORIZONTAL);
+//        byte[] mmc1Rom = createMockNesRom(1, 1, 0x00, false, false, false, core.MirroringMode.HORIZONTAL);
 //        mmc1Rom[6] = (byte)(mmc1Rom[6] | 0x10); // Set bit 4 of flags6
-//        Cartridge mmc1Cartridge = Cartridge.fromNesFile(mmc1Rom);
+//        core.Cartridge mmc1Cartridge = core.Cartridge.fromNesFile(mmc1Rom);
 //        assertEquals(1, mmc1Cartridge.getMapperId());
 //
 //        // Test UxROM (mapper 2)
-//        byte[] uxromRom = createMockNesRom(1, 1, 0x00, false, false, false, MirroringMode.HORIZONTAL);
+//        byte[] uxromRom = createMockNesRom(1, 1, 0x00, false, false, false, core.MirroringMode.HORIZONTAL);
 //        uxromRom[6] = (byte)(uxromRom[6] | 0x20); // Set bit 5 of flags6
-//        Cartridge uxromCartridge = Cartridge.fromNesFile(uxromRom);
+//        core.Cartridge uxromCartridge = core.Cartridge.fromNesFile(uxromRom);
 //        assertEquals(2, uxromCartridge.getMapperId());
 //    }
 

@@ -1,3 +1,5 @@
+package core;
+
 public class Controller {
     private boolean[] buttons = new boolean[8]; // A, B, Select, Start, Up, Down, Left, Right
     private int strobe = 0;

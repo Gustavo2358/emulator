@@ -1,3 +1,5 @@
+import core.WRAM;
+
 public class MockWRAM implements WRAM {
     public int[] memory;
 

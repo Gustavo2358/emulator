@@ -1,3 +1,5 @@
+package core;
+
 public class EightBitRegister {
     private int value;
 

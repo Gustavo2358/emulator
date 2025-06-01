@@ -1,3 +1,5 @@
+package core;
+
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -577,7 +579,7 @@ public class CPU {
         }
     }
 
-    // Converts the current CPU flags into an 8-bit representation.
+    // Converts the current core.CPU flags into an 8-bit representation.
     // Bit layout: N V 1 B D I Z C
     private int flagsToBits(boolean bflag) {
         int flags = 0;

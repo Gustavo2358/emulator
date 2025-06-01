@@ -1,3 +1,5 @@
+package core;
+
 public enum AddressingMode {
     IMM,
     ZPG,
