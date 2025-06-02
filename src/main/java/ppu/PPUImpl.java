@@ -392,7 +392,7 @@ public class PPUImpl implements PPU {
                             case 2: {
                                 int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
                                 int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
-                                bgNextTileAttribute = ((ppuRead(attributeAddress) >> shift) & 0x3) << 2;
+                                bgNextTileAttribute = (ppuRead(attributeAddress) >> shift) & 0x3;
                                 break;
                             }
                             case 4: {
