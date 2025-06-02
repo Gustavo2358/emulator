@@ -21,6 +21,7 @@ public class CPU {
 
     private boolean nmiPending = false;
     private boolean processingNMI = false;
+    private int dmaStallCycles = 0; // Added for OAMDMA
 
     public CPU(Bus bus) {
         this.bus = bus;
@@ -39,6 +40,10 @@ public class CPU {
         negative = false;
 
         remainingCycles = 0;
+    }
+
+    public void stallForDMA(int cycles) { // Added for OAMDMA
+        this.dmaStallCycles += cycles;
     }
 
     public void loadState(EmulatorState emulatorState) {
@@ -114,6 +119,11 @@ public class CPU {
     }
 
     public void runCycle() {
+        if (dmaStallCycles > 0) {
+            dmaStallCycles--;
+            return; // Exit early, CPU does nothing this cycle.
+        }
+
         if (remainingCycles == 0) {
             if (nmiPending && !processingNMI) {
                 processingNMI = true;

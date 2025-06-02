@@ -5,6 +5,7 @@ import java.awt.image.DataBufferInt;
 
 import core.CPU;
 import core.Cartridge; // Added import
+import core.Bus; // Added import for cpuBus
 
 
 public class PPUImpl implements PPU {
@@ -76,6 +77,12 @@ public class PPUImpl implements PPU {
     private int bgShifterAttributeLow;
     private int bgShifterAttributeHigh;
 
+    // OAMDMA related fields
+    private Bus cpuBus; // To access CPU memory during DMA
+    private boolean oamDmaActive = false;
+    private int oamDmaPageForTransfer; // Stores the page for the current DMA
+    private int oamDmaCyclesRemaining; // PPU cycles PPU is "busy" or managing DMA
+
     // ---------------------------------------------------------------------
     public PPUImpl(Cartridge cartridge) { // Modified constructor
         this.vram = new VRAM();
@@ -92,6 +99,35 @@ public class PPUImpl implements PPU {
 
     public void setCpu(CPU cpu) { // Added setter for core.CPU
         this.cpu = cpu;
+    }
+
+    @Override
+    public void setCpuBus(Bus bus) {
+        this.cpuBus = bus;
+    }
+
+    @Override
+    public void startOAMDMA(int page) {
+        if (this.cpuBus == null) {
+            System.err.println("PPU Error: CPU Bus not set. Cannot perform OAMDMA.");
+            return;
+        }
+
+        this.oamDmaPageForTransfer = page & 0xFF; // Ensure page is a byte
+        this.oamDmaActive = true;
+        this.oamDmaCyclesRemaining = 514; // PPU is "busy" for this duration
+
+        // Perform the 256-byte copy from CPU RAM to PPU OAM immediately
+        int startAddressInCpuRam = this.oamDmaPageForTransfer << 8;
+        for (int i = 0; i < 256; i++) {
+            int dataByte = this.cpuBus.read(startAddressInCpuRam + i);
+            this.oam.write(i, dataByte); // Assuming oam.write(index, value) correctly writes to the OAM array
+        }
+
+        // Signal the CPU to stall
+        if (this.cpu != null) {
+            this.cpu.stallForDMA(514); // Request CPU to stall for 514 CPU cycles
+        }
     }
 
     // =====================================================================
@@ -257,11 +293,6 @@ public class PPUImpl implements PPU {
                     }
                     break;
                 case FOUR_SCREEN:
-                    // This requires 4KB of VRAM, typically on cartridge.
-                    // For internal 2KB VRAM, this might alias or need specific cart handling.
-                    // A simple approach for internal 2KB is to map based on lowest 2 tables or a default.
-                    // Or, rely on cartridge to provide memory if it's true 4-screen.
-                    // For now, let's assume it will try to map within the 2KB, potentially aliasing.
                     vramIndex = normalizedAddress & 0x07FF; // Basic mapping for 2KB if no cart VRAM for 4-screen
                     break;
                 default: // Should not happen with valid MirroringMode enum
@@ -328,207 +359,218 @@ public class PPUImpl implements PPU {
     // =====================================================================
     @Override
     public void runCycle() {
-        if (scanline <= 261) {
-            if (cycle == 1) {
-                ppuStatus &= ~0xE0;
-                nmiOccurred = false;
-            }
-            if (scanline == 261 && cycle >= 280 && cycle <= 304) {
-                if ((ppuMask & 0x18) != 0) {
-                    vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
-                }
-            }
+        boolean wasDmaActiveThisCycleStart = oamDmaActive;
 
-            if (scanline < 240) {
-                if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
-                    updateShifters();
-
-                    switch ((cycle - 1) % 8) {
-                        case 0:
-                            loadBackgroundShifters();
-                            bgNextTileId = ppuRead(0x2000 | (vRamAddr & 0x0FFF));
-                            break;
-                        case 2: {
-                            int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
-                            int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
-                            bgNextTileAttribute = ((ppuRead(attributeAddress) >> shift) & 0x3) << 2;
-                            break;
-                        }
-                        case 4: {
-                            int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7);
-                            bgNextTileLow = ppuRead(patternAddress);
-                            break;
-                        }
-                        case 6: {
-                            int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7) | 8;
-                            bgNextTileHigh = ppuRead(patternAddress);
-                            break;
-                        }
-                        case 7:
-                            incrementX();
-                            break;
-                    }
-                }
-
-                if (cycle == 256) {
-                    incrementY();
-                }
-                if (cycle == 257) {
-                    loadBackgroundShifters();
-                    if ((ppuMask & 0x18) != 0) {
-                        vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
-                    }
-                }
-                if (cycle == 257) {
-                    for (int i = 0; i < 8; i++) {
-                        spriteX[i] = 0xFF;
-                        spriteY[i] = 0xFF;
-                        spriteTile[i] = 0xFF;
-                        spriteAttribute[i] = 0xFF;
-                        spriteDataLow[i] = 0;
-                        spriteDataHigh[i] = 0;
-                    }
-                    spriteCount = 0;
-                    int oamIndex = 0;
-
-                    while (oamIndex < 64 && spriteCount < 8) {
-                        int y = oam.read(oamIndex * 4);
-                        int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
-                        int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
-                        if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
-                            spriteY[spriteCount] = y;
-                            spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
-                            spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
-                            spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
-
-                            int tileAddr;
-                            int row = nextScanln - y;
-                            if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
-                                row = spriteHeight - 1 - row;
-                            }
-
-                            if ((ppuCtrl & 0x20) == 0) {
-                                tileAddr = ((ppuCtrl & 0x08) << 9) | (spriteTile[spriteCount] << 4) | row;
-                            } else {
-                                tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
-                            }
-
-                            spriteDataLow[spriteCount] = ppuRead(tileAddr);
-                            spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
-
-                            if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
-                                spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
-                                spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
-                            }
-
-                            spriteCount++;
-                        }
-                        oamIndex++;
-                    }
-
-                    if (oamIndex >= 64 && spriteCount >= 8) {
-                        ppuStatus |= 0x20;
-                    }
-                }
-
-                if (cycle >= 1 && cycle <= 256 && scanline >= 0 && scanline < 240) {
-                    int bgPixel = 0;
-                    int bgPalette = 0;
-
-                    if ((ppuMask & 0x08) != 0) {
-                        if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
-                            int bitMux = 0x8000 >> fineX;
-
-                            int p0 = (bgShifterPatternLow & bitMux) > 0 ? 1 : 0;
-                            int p1 = (bgShifterPatternHigh & bitMux) > 0 ? 1 : 0;
-                            bgPixel = p0 | (p1 << 1);
-
-                            int pal0 = (bgShifterAttributeLow & bitMux) > 0 ? 1 : 0;
-                            int pal1 = (bgShifterAttributeHigh & bitMux) > 0 ? 1 : 0;
-                            bgPalette = pal0 | (pal1 << 1);
-                        }
-                    }
-
-                    int fpixel = 0;
-                    int fpalette = 0;
-                    int fpriority = 0;
-
-                    if ((ppuMask & 0x10) != 0) {
-                        if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
-                            for (int i = 0; i < spriteCount; i++) {
-                                if (spriteX[i] == 0) {
-                                    int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
-                                    fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
-                                    fpalette = (spriteAttribute[i] & 0x03) + 4;
-                                    fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0; // 1 if sprite behind BG, 0 if in front
-
-                                    if (fp != 0) { // If sprite pixel is not transparent
-                                        fpixel = fp; // Assign the calculated sprite pixel to fpixel
-                                        if (i == 0 && bgPixel != 0 && cycle != 256) { // Sprite 0 hit detection
-                                            ppuStatus |= 0x40;
-                                        }
-                                        break; // Found first opaque sprite pixel for this X
-                                    }
-                                }
-                            }
-
-                            for (int i = 0; i < spriteCount; i++) {
-                                if (spriteX[i] > 0) {
-                                    spriteX[i]--;
-                                } else {
-                                    spriteDataLow[i] <<= 1;
-                                    spriteDataHigh[i] <<= 1;
-                                }
-                            }
-                        }
-                    }
-
-                    int pixel;
-                    int palette;
-
-                    boolean bgIsTransparent = (bgPixel == 0);
-                    boolean spriteIsTransparent = (fpixel == 0);
-
-                    if (bgIsTransparent && spriteIsTransparent) {
-                        // Both background and sprite are transparent
-                        pixel = 0;
-                        palette = 0;
-                    } else if (bgIsTransparent && !spriteIsTransparent) {
-                        // Background is transparent, sprite is visible
-                        pixel = fpixel;
-                        palette = fpalette;
-                    } else if (!bgIsTransparent && spriteIsTransparent) {
-                        // Background is visible, sprite is transparent
-                        pixel = bgPixel;
-                        palette = bgPalette;
-                    } else {
-                        // Both background and sprite are visible, apply priority
-                        if (fpriority == 1) { // Sprite priority bit 5 is set (1 means behind background)
-                            pixel = bgPixel;
-                            palette = bgPalette;
-                        } else { // Sprite priority bit 5 is clear (0 means in front of background)
-                            pixel = fpixel;
-                            palette = fpalette;
-                        }
-                    }
-
-                    int colorAddr = 0x3F00 | (palette << 2) | pixel;
-                    int colorIndex = ppuRead(colorAddr) & 0x3F;
-
-                    int pixelIndex = (scanline * 256) + (cycle - 1);
-                    if (pixelIndex >= 0 && pixelIndex < frameData.length) {
-                        frameData[pixelIndex] = PALETTE[colorIndex];
-                    }
-                }
+        if (oamDmaActive) {
+            oamDmaCyclesRemaining--;
+            if (oamDmaCyclesRemaining <= 0) {
+                oamDmaActive = false;
             }
         }
 
-        if (scanline == 241 && cycle == 1) {
-            ppuStatus |= 0x80; // Set VBlank flag
-            if ((ppuCtrl & 0x80) != 0) { // If NMI is enabled in PPUCTRL
-                this.nmiOccurred = true; // PPU's internal flag that NMI condition happened
-                if (this.cpu != null) {
-                    this.cpu.triggerNMI(); // Signal the core.CPU
+        if (!wasDmaActiveThisCycleStart) {
+            if (scanline <= 261) {
+                if (cycle == 1) {
+                    ppuStatus &= ~0xE0;
+                    nmiOccurred = false;
+                }
+                if (scanline == 261 && cycle >= 280 && cycle <= 304) {
+                    if ((ppuMask & 0x18) != 0) {
+                        vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
+                    }
+                }
+
+                if (scanline < 240) {
+                    if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
+                        updateShifters();
+
+                        switch ((cycle - 1) % 8) {
+                            case 0:
+                                loadBackgroundShifters();
+                                bgNextTileId = ppuRead(0x2000 | (vRamAddr & 0x0FFF));
+                                break;
+                            case 2: {
+                                int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
+                                int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
+                                bgNextTileAttribute = ((ppuRead(attributeAddress) >> shift) & 0x3) << 2;
+                                break;
+                            }
+                            case 4: {
+                                int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7);
+                                bgNextTileLow = ppuRead(patternAddress);
+                                break;
+                            }
+                            case 6: {
+                                int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7) | 8;
+                                bgNextTileHigh = ppuRead(patternAddress);
+                                break;
+                            }
+                            case 7:
+                                incrementX();
+                                break;
+                        }
+                    }
+
+                    if (cycle == 256) {
+                        incrementY();
+                    }
+                    if (cycle == 257) {
+                        loadBackgroundShifters();
+                        if ((ppuMask & 0x18) != 0) {
+                            vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
+                        }
+                    }
+                    if (cycle == 257) {
+                        for (int i = 0; i < 8; i++) {
+                            spriteX[i] = 0xFF;
+                            spriteY[i] = 0xFF;
+                            spriteTile[i] = 0xFF;
+                            spriteAttribute[i] = 0xFF;
+                            spriteDataLow[i] = 0;
+                            spriteDataHigh[i] = 0;
+                        }
+                        spriteCount = 0;
+                        int oamIndex = 0;
+
+                        while (oamIndex < 64 && spriteCount < 8) {
+                            int y = oam.read(oamIndex * 4);
+                            int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
+                            int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
+                            if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
+                                spriteY[spriteCount] = y;
+                                spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
+                                spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
+                                spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
+
+                                int tileAddr;
+                                int row = nextScanln - y;
+                                if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
+                                    row = spriteHeight - 1 - row;
+                                }
+
+                                if ((ppuCtrl & 0x20) == 0) {
+                                    tileAddr = ((ppuCtrl & 0x08) << 9) | (spriteTile[spriteCount] << 4) | row;
+                                } else {
+                                    tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
+                                }
+
+                                spriteDataLow[spriteCount] = ppuRead(tileAddr);
+                                spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
+
+                                if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
+                                    spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
+                                    spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
+                                }
+
+                                spriteCount++;
+                            }
+                            oamIndex++;
+                        }
+
+                        if (oamIndex >= 64 && spriteCount >= 8) {
+                            ppuStatus |= 0x20;
+                        }
+                    }
+
+                    if (cycle >= 1 && cycle <= 256 && scanline >= 0 && scanline < 240) {
+                        int bgPixel = 0;
+                        int bgPalette = 0;
+
+                        if ((ppuMask & 0x08) != 0) {
+                            if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
+                                int bitMux = 0x8000 >> fineX;
+
+                                int p0 = (bgShifterPatternLow & bitMux) > 0 ? 1 : 0;
+                                int p1 = (bgShifterPatternHigh & bitMux) > 0 ? 1 : 0;
+                                bgPixel = p0 | (p1 << 1);
+
+                                int pal0 = (bgShifterAttributeLow & bitMux) > 0 ? 1 : 0;
+                                int pal1 = (bgShifterAttributeHigh & bitMux) > 0 ? 1 : 0;
+                                bgPalette = pal0 | (pal1 << 1);
+                            }
+                        }
+
+                        int fpixel = 0;
+                        int fpalette = 0;
+                        int fpriority = 0;
+
+                        if ((ppuMask & 0x10) != 0) {
+                            if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
+                                for (int i = 0; i < spriteCount; i++) {
+                                    if (spriteX[i] == 0) {
+                                        int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
+                                        fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
+                                        fpalette = (spriteAttribute[i] & 0x03) + 4;
+                                        fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0; // 1 if sprite behind BG, 0 if in front
+
+                                        if (fp != 0) { // If sprite pixel is not transparent
+                                            fpixel = fp; // Assign the calculated sprite pixel to fpixel
+                                            if (i == 0 && bgPixel != 0 && cycle != 256) { // Sprite 0 hit detection
+                                                ppuStatus |= 0x40;
+                                            }
+                                            break; // Found first opaque sprite pixel for this X
+                                        }
+                                    }
+                                }
+
+                                for (int i = 0; i < spriteCount; i++) {
+                                    if (spriteX[i] > 0) {
+                                        spriteX[i]--;
+                                    } else {
+                                        spriteDataLow[i] <<= 1;
+                                        spriteDataHigh[i] <<= 1;
+                                    }
+                                }
+                            }
+                        }
+
+                        int pixel;
+                        int palette;
+
+                        boolean bgIsTransparent = (bgPixel == 0);
+                        boolean spriteIsTransparent = (fpixel == 0);
+
+                        if (bgIsTransparent && spriteIsTransparent) {
+                            // Both background and sprite are transparent
+                            pixel = 0;
+                            palette = 0;
+                        } else if (bgIsTransparent && !spriteIsTransparent) {
+                            // Background is transparent, sprite is visible
+                            pixel = fpixel;
+                            palette = fpalette;
+                        } else if (!bgIsTransparent && spriteIsTransparent) {
+                            // Background is visible, sprite is transparent
+                            pixel = bgPixel;
+                            palette = bgPalette;
+                        } else {
+                            // Both background and sprite are visible, apply priority
+                            if (fpriority == 1) { // Sprite priority bit 5 is set (1 means behind background)
+                                pixel = bgPixel;
+                                palette = bgPalette;
+                            } else { // Sprite priority bit 5 is clear (0 means in front of background)
+                                pixel = fpixel;
+                                palette = fpalette;
+                            }
+                        }
+
+                        int colorAddr = 0x3F00 | (palette << 2) | pixel;
+                        int colorIndex = ppuRead(colorAddr) & 0x3F;
+
+                        int pixelIndex = (scanline * 256) + (cycle - 1);
+                        if (pixelIndex >= 0 && pixelIndex < frameData.length) {
+                            frameData[pixelIndex] = PALETTE[colorIndex];
+                        }
+                    }
+                }
+            }
+
+            if (scanline == 241 && cycle == 1) {
+                ppuStatus |= 0x80; // Set VBlank flag
+                if ((ppuCtrl & 0x80) != 0) { // If NMI is enabled in PPUCTRL
+                    this.nmiOccurred = true; // PPU's internal flag that NMI condition happened
+                    if (this.cpu != null) {
+                        this.cpu.triggerNMI(); // Signal the core.CPU
+                    }
                 }
             }
         }

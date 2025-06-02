@@ -23,6 +23,7 @@ public class Main {
         CPU cpu = new CPU(bus);
 
         ppu.setCpu(cpu); // Set core.CPU instance in PPU for NMI
+        ppu.setCpuBus(bus); // Ensure PPUImpl gets a reference to CPUBus
 
         cpu.fetchProgramCounter();
 

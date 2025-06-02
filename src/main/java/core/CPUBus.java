@@ -9,7 +9,6 @@ public class CPUBus implements Bus {
     private Controller controller1;
     private Controller controller2;
 
-
     public CPUBus(WRAM wram, Cartridge cartridge, PPU ppu) {
         this.wram = wram;
         this.cartridge = cartridge;
@@ -18,50 +17,55 @@ public class CPUBus implements Bus {
         this.controller2 = new Controller();
     }
 
-@Override
-public int read(int address) {
-    if (address < 0x2000) { // $0000-$1FFF: core.WRAM
-        return wram.read(address);
-    } else if (address < 0x4000) { // $2000-$3FFF: PPU registers
-        return ppu.read(address);
-    } else if ((address >= 0x4000 && address <= 0x4013) || address == 0x4015) { // APU registers
-        // APU register read (not implemented)
-        return 0;
-    } else if (address == 0x4014) { // OAMDMA
-        // OAMDMA read (not implemented)
-        return 0;
-    } else if (address == 0x4016) { // core.Controller 1
-        return controller1.read();
-    } else if (address == 0x4017) { // core.Controller 2
-        return controller2.read();
-    } else if (address <= 0x5FFF) { // Expansion/cartridge space
-        return cartridge.cpuRead(address);
-    } else if (address <= 0xFFFF) { // $6000-$FFFF: core.Cartridge
-        return cartridge.cpuRead(address);
+    @Override
+    public int read(int address) {
+        address &= 0xFFFF; // Ensure address is within 16-bit range
+        if (address < 0x2000) { // $0000-$1FFF: core.WRAM
+            return wram.read(address);
+        } else if (address < 0x4000) { // $2000-$3FFF: PPU registers
+            return ppu.read(address);
+        } else if (address == 0x4016) { // core.Controller 1
+            return controller1.read();
+        } else if (address == 0x4017) { // core.Controller 2
+            return controller2.read();
+        } else if ((address >= 0x4000 && address <= 0x4013) || address == 0x4015) { // APU registers
+            // APU register read (not implemented)
+            return 0;
+        } else if (address == 0x4014) { // OAMDMA
+            // OAMDMA read (typically not readable, or returns open bus)
+            return 0;
+        } else if (address >= 0x4020) { // Cartridge space starts typically from $4020 or $6000
+            return cartridge.cpuRead(address);
+        }
+        return 0; // Default for unhandled reads or open bus behavior
     }
-    return 0;
-}
 
-@Override
-public void write(int address, int value) {
-    if (address < 0x2000) { // $0000-$1FFF: core.WRAM
-        wram.write(address, value);
-    } else if (address < 0x4000) { // $2000-$3FFF: PPU registers
-        ppu.write(address, value);
-    } else if (address <= 0x4013 || address == 0x4015) {
-        // APU register write (not implemented)
-    } else if (address == 0x4014) { // OAMDMA
-        //TODO OAMDMA (sprite DMA) not implemented
-    } else if (address == 0x4016) {
-        controller1.write(value);
-    } else if (address == 0x4017) {
-        controller2.write(value);
-    } else if (address <= 0x5FFF) { // Expansion/cartridge space
-        cartridge.cpuWrite(address, value);
-    } else if (address <= 0xFFFF) { // $6000-$FFFF: core.Cartridge
-        cartridge.cpuWrite(address, value);
+    @Override
+    public void write(int address, int value) {
+        address &= 0xFFFF; // Ensure address is within 16-bit range
+        value &= 0xFF;   // Ensure value is a byte
+
+        if (address < 0x2000) { // $0000-$1FFF: core.WRAM (mirrored every 0x800 bytes)
+            wram.write(address, value);
+        } else if (address >= 0x2000 && address < 0x4000) { // $2000-$3FFF: PPU registers (mirrored every 8 bytes)
+            ppu.write(address, value);
+        } else if (address == 0x4014) { // OAMDMA register
+            ppu.startOAMDMA(value); // 'value' is the high byte of the source CPU RAM address (page number)
+        } else if (address == 0x4016) { // core.Controller 1 Strobe
+            controller1.write(value);
+        } else if (address == 0x4017) { // core.Controller 2 Strobe / APU Frame Counter control
+            controller2.write(value);
+            // APU related write might also occur here.
+        } else if (address >= 0x4000 && address <= 0x401F) { // Other APU/IO registers ($4000-$4013, $4015)
+            // Handle APU register writes if/when implemented. For now, can be a no-op or log.
+            // System.out.printf("CPUBus: Write to APU/IO $%04X = $%02X (unhandled)\n", address, value);
+        } else if (address >= 0x6000) { // Cartridge PRG RAM ($6000-$7FFF) / PRG ROM ($8000-$FFFF)
+                                        // Mapper might handle writes to ROM area for bank switching.
+            cartridge.cpuWrite(address, value);
+        }
+        // Note: Writes to Expansion ROM ($4020-$5FFF) are often ignored or handled by specific cartridges.
     }
-}
+
     @Override
     public void loadWRamState(WRAM wram) {
         this.wram.loadMemoryState(wram);
