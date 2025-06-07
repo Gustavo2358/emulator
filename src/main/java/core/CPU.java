@@ -1,5 +1,6 @@
 package core;
 
+import core.apu.APU; // Updated import
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -16,6 +17,7 @@ public class CPU {
     private boolean negative;
 
     private final Bus bus;
+    private final APU apu; // Added direct reference to APU
 
     private int remainingCycles;
 
@@ -25,6 +27,14 @@ public class CPU {
 
     public CPU(Bus bus) {
         this.bus = bus;
+        if (bus instanceof CPUBus) { // Get APU from CPUBus
+            this.apu = ((CPUBus) bus).getAPU();
+        } else {
+            // This case should ideally not happen if CPUBus is always used.
+            // Or, throw an IllegalArgumentException if APU is essential.
+            System.err.println("Warning: CPUBus not used, APU functionality might be missing.");
+            this.apu = null; // Or a NullAPU object
+        }
 
         pc = 0x00;
         sp = new EightBitRegister(0xFD);
@@ -40,6 +50,10 @@ public class CPU {
         negative = false;
 
         remainingCycles = 0;
+    }
+
+    public Bus getBus() { // Added getter for the bus
+        return bus;
     }
 
     public void stallForDMA(int cycles) { // Added for OAMDMA
@@ -139,6 +153,11 @@ public class CPU {
             executeInstruction();
         }
         remainingCycles--;
+
+        // Clock the APU after each CPU cycle
+        if (apu != null) {
+            apu.clock();
+        }
     }
 
     private boolean isOpCode() {
