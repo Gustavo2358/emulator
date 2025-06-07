@@ -1,5 +1,7 @@
 import core.*;
 import ppu.PPUImpl;
+import apu.APUImpl;
+import apu.APU;
 
 import javax.swing.*;
 import java.io.IOException;
@@ -19,7 +21,8 @@ public class Main {
         Cartridge cartridge = Cartridge.fromNesFile(romData);
         WRAMImpl wram = new WRAMImpl();
         PPUImpl ppu = new PPUImpl(cartridge); // Pass cartridge to PPU constructor
-        CPUBus bus = new CPUBus(wram, cartridge, ppu);
+        APU apu = new APUImpl();
+        CPUBus bus = new CPUBus(wram, cartridge, ppu, apu);
         CPU cpu = new CPU(bus);
 
         ppu.setCpu(cpu); // Set core.CPU instance in PPU for NMI
@@ -28,7 +31,7 @@ public class Main {
         cpu.fetchProgramCounter();
 
         SwingUtilities.invokeLater(() -> {
-            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu);
+            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu, apu);
             emulatorUI.setVisible(true);
             emulatorUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

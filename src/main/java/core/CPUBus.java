@@ -1,18 +1,21 @@
 package core;
 
 import ppu.PPU;
+import apu.APU;
 
 public class CPUBus implements Bus {
     private final WRAM wram;
     private final Cartridge cartridge;
     private final PPU ppu;
+    private final APU apu;
     private Controller controller1;
     private Controller controller2;
 
-    public CPUBus(WRAM wram, Cartridge cartridge, PPU ppu) {
+    public CPUBus(WRAM wram, Cartridge cartridge, PPU ppu, APU apu) {
         this.wram = wram;
         this.cartridge = cartridge;
         this.ppu = ppu;
+        this.apu = apu;
         this.controller1 = new Controller();
         this.controller2 = new Controller();
     }
@@ -28,9 +31,8 @@ public class CPUBus implements Bus {
             return controller1.read();
         } else if (address == 0x4017) { // core.Controller 2
             return controller2.read();
-        } else if ((address >= 0x4000 && address <= 0x4013) || address == 0x4015) { // APU registers
-            // APU register read (not implemented)
-            return 0;
+        } else if ((address >= 0x4000 && address <= 0x4015)) { // APU registers
+            return apu.read(address);
         } else if (address == 0x4014) { // OAMDMA
             // OAMDMA read (typically not readable, or returns open bus)
             return 0;
@@ -56,9 +58,8 @@ public class CPUBus implements Bus {
         } else if (address == 0x4017) { // core.Controller 2 Strobe / APU Frame Counter control
             controller2.write(value);
             // APU related write might also occur here.
-        } else if (address >= 0x4000 && address <= 0x401F) { // Other APU/IO registers ($4000-$4013, $4015)
-            // Handle APU register writes if/when implemented. For now, can be a no-op or log.
-            // System.out.printf("CPUBus: Write to APU/IO $%04X = $%02X (unhandled)\n", address, value);
+        } else if (address >= 0x4000 && address <= 0x401F) { // APU/IO registers
+            apu.write(address, value);
         } else if (address >= 0x6000) { // Cartridge PRG RAM ($6000-$7FFF) / PRG ROM ($8000-$FFFF)
                                         // Mapper might handle writes to ROM area for bank switching.
             cartridge.cpuWrite(address, value);

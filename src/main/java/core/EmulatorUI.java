@@ -1,6 +1,7 @@
 package core;
 
 import ppu.PPU;
+import apu.APU;
 
 import javax.swing.*;
 import java.awt.*;
@@ -17,13 +18,15 @@ public class EmulatorUI extends JFrame {
     private final Canvas canvas;
     private final PPU ppu;
     private final CPU cpu;
+    private final APU apu;
     private final Controller controller;
 
     private boolean isRunning = false;
 
-    public EmulatorUI(CPU cpu, PPU ppu) {
+    public EmulatorUI(CPU cpu, PPU ppu, APU apu) {
         this.cpu = cpu;
         this.ppu = ppu;
+        this.apu = apu;
         this.controller = new Controller();
 
         setTitle("NES Emulator");
@@ -172,6 +175,7 @@ public class EmulatorUI extends JFrame {
                     ppu.runCycle();
                     ppu.runCycle();
                     ppu.runCycle();
+                    apu.runCycle();
                     cyclesThisFrame++;
                 }
 
