@@ -1,24 +1,25 @@
+import core.*;
+
 public class CPUTestBuilder {
 
     private final WRAM wram;
     private final CpuState.Builder cpuStateBuilder;
 
     public CPUTestBuilder() {
-        // Initialize WRAM with a 64K memory array.
-        wram = new WRAM();
-        wram.memory = new int[0x10000];
+        // Initialize core.WRAM with a 64K memory array.
+        wram = new MockWRAM(new int[0x10000]);
         cpuStateBuilder = new CpuState.Builder();
     }
 
     /**
      * Sets the reset vector in memory.
      *
-     * @param address The address where the CPU will start execution.
+     * @param address The address where the core.CPU will start execution.
      * @return The builder instance.
      */
     public CPUTestBuilder withResetVector(int address) {
-        wram.memory[0xFFFC] = address & 0xFF;
-        wram.memory[0xFFFD] = (address >> 8) & 0xFF;
+        wram.write(0xFFFC, address & 0xFF);
+        wram.write(0xFFFD, (address >> 8) & 0xFF);
         return this;
     }
 
@@ -31,9 +32,9 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withInstruction(int address, int opcode, int... operands) {
-        wram.memory[address] = opcode;
+        wram.write(address, opcode);
         for (int i = 0; i < operands.length; i++) {
-            wram.memory[address + 1 + i] = operands[i];
+            wram.write(address + 1 + i, operands[i]);
         }
         return this;
     }
@@ -47,9 +48,9 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withZeroPagePointer(int zeroPageAddress, int low, int high) {
-        wram.memory[zeroPageAddress] = low;
+        wram.write(zeroPageAddress, low);
         // Ensure that the second byte is also in the zero page (wrap-around if needed).
-        wram.memory[(zeroPageAddress + 1) & 0xFF] = high;
+        wram.write((zeroPageAddress + 1) & 0xFF, high);
         return this;
     }
 
@@ -94,7 +95,7 @@ public class CPUTestBuilder {
      * @return The builder instance.
      */
     public CPUTestBuilder withMemoryValue(int address, int value) {
-        wram.memory[address] = value;
+        wram.write(address, value);
         return this;
     }
 
@@ -176,10 +177,10 @@ public class CPUTestBuilder {
     }
 
     /**
-     * Builds the CPU and runs it for the given number of cycles.
+     * Builds the core.CPU and runs it for the given number of cycles.
      *
-     * @param cycles The number of CPU cycles to run.
-     * @return The CPU after running the specified cycles.
+     * @param cycles The number of core.CPU cycles to run.
+     * @return The core.CPU after running the specified cycles.
      */
     public CPU buildAndRun(int cycles) {
         Bus bus = new MockBus(wram);
@@ -187,7 +188,7 @@ public class CPUTestBuilder {
         EmulatorState state = new EmulatorState(cpuStateBuilder.build(), wram);
         cpu.loadState(state);
         cpu.fetchProgramCounter();
-        // Run the CPU for the specified number of cycles.
+        // Run the core.CPU for the specified number of cycles.
         for (int i = 0; i < cycles; i++) {
             cpu.runCycle();
         }
@@ -195,11 +196,11 @@ public class CPUTestBuilder {
     }
 
     /**
-     * Builds the CPU and runs it for the given number of cycles.
+     * Builds the core.CPU and runs it for the given number of cycles.
      *
-     * @param cycles The number of CPU cycles to run.
+     * @param cycles The number of core.CPU cycles to run.
      * @param bus The bus.
-     * @return The CPU after running the specified cycles.
+     * @return The core.CPU after running the specified cycles.
      */
     public CPU buildAndRun(int cycles, Bus bus) {
         bus.loadWRamState(wram);
@@ -207,7 +208,7 @@ public class CPUTestBuilder {
         EmulatorState state = new EmulatorState(cpuStateBuilder.build(), wram);
         cpu.loadState(state);
         cpu.fetchProgramCounter();
-        // Run the CPU for the specified number of cycles.
+        // Run the core.CPU for the specified number of cycles.
         for (int i = 0; i < cycles; i++) {
             cpu.runCycle();
         }

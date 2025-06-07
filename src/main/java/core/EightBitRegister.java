@@ -1,7 +1,9 @@
-public class Register8Bit {
+package core;
+
+public class EightBitRegister {
     private int value;
 
-    public Register8Bit(int value) {
+    public EightBitRegister(int value) {
         this.value = value & 0xFF;
     }
 

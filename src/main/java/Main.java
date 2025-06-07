@@ -1,35 +1,50 @@
+import core.*;
+import ppu.PPUImpl;
+
+import javax.swing.*;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 public class Main {
     public static void main(String[] args) {
-        var wram = new WRAM();
-        var bus = new MockBus(wram);
-        var cpu = new CPU(bus);
-        startEmulation(cpu);
+        if(args.length != 1) {
+            System.err.println("Usage: java Main <path_to_nes_file>");
+            System.exit(1);
+        }
+
+        String romPath = args[0];
+        byte[] romData = loadRomFile(romPath);
+
+        Cartridge cartridge = Cartridge.fromNesFile(romData);
+        WRAMImpl wram = new WRAMImpl();
+        PPUImpl ppu = new PPUImpl(cartridge); // Pass cartridge to PPU constructor
+        CPUBus bus = new CPUBus(wram, cartridge, ppu);
+        CPU cpu = new CPU(bus);
+
+        ppu.setCpu(cpu); // Set core.CPU instance in PPU for NMI
+        ppu.setCpuBus(bus); // Ensure PPUImpl gets a reference to CPUBus
+
+        cpu.fetchProgramCounter();
+
+        SwingUtilities.invokeLater(() -> {
+            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu);
+            emulatorUI.setVisible(true);
+            emulatorUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+            bus.setController1(emulatorUI.getController());
+            emulatorUI.start();
+        });
     }
 
-    private static void startEmulation(CPU cpu) {
-        cpu.fetchProgramCounter();
-        final long cycleDuration = 559; // in nanoseconds for NTSC
-        long nextCycleTime = System.nanoTime();
 
-        while (true) {
-            long now = System.nanoTime();
-            long remaining = nextCycleTime - now;
-
-            if (remaining <= 0) {
-                cpu.runCycle();
-//                ppu.runCycle();
-//                ppu.runCycle();
-//                ppu.runCycle();
-                nextCycleTime += cycleDuration;
-            } else if (remaining > 1_000) { // more than 1 microsecond remaining
-                try {
-                    Thread.sleep(0, (int) Math.max(remaining - 500, 0));
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            // When remaining time is very short, just busy-wait without yielding
+    private static byte[] loadRomFile(String filePath) {
+        try {
+            return Files.readAllBytes(Paths.get(filePath));
+        } catch (IOException e) {
+            System.err.println("Error loading ROM file: " + e.getMessage());
+            System.exit(1);
+            return null;
         }
     }
 }
