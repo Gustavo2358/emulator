@@ -24,6 +24,8 @@ public class CPU {
     private boolean nmiPending = false;
     private boolean processingNMI = false;
     private int dmaStallCycles = 0; // Added for OAMDMA
+    private boolean irqLineAsserted = false; // CPU's internal IRQ line state
+    private boolean processingIRQ = false; // Flag to indicate CPU is in IRQ sequence
 
     public CPU(Bus bus) {
         this.bus = bus;
@@ -132,22 +134,50 @@ public class CPU {
         nmiPending = true;
     }
 
+    /**
+     * Asserts the CPU's IRQ line. The IRQ will only be processed if CPU interrupts are not disabled (I flag is clear).
+     */
+    public void assertIRQLine() {
+        this.irqLineAsserted = true;
+    }
+
+    /**
+     * De-asserts the CPU's IRQ line. This is typically done by the interrupting device once the condition is cleared.
+     */
+    public void deassertIRQLine() {
+        this.irqLineAsserted = false;
+    }
+
     public void runCycle() {
         if (dmaStallCycles > 0) {
             dmaStallCycles--;
-            return; // Exit early, CPU does nothing this cycle.
+            // APU and PPU clocking should continue during DMA stall
+            if (apu != null) {
+                apu.clock();
+            }
+            // Assuming PPU clocking is handled elsewhere or also needs to be added here if not.
+            return;
         }
 
         if (remainingCycles == 0) {
+            // Interrupt polling happens before fetching the next instruction.
             if (nmiPending && !processingNMI) {
-                processingNMI = true;
-                remainingCycles = 7;
+                processingNMI = true; // Start NMI sequence
+                remainingCycles = 7;  // NMI takes 7 cycles
+                // NMI processing will begin in the next block
+            } else if (irqLineAsserted && !interruptDisable && !processingNMI && !processingIRQ) {
+                // Only process IRQ if I flag is clear, and not already in NMI or another IRQ sequence.
+                processingIRQ = true; // Start IRQ sequence
+                remainingCycles = 7;  // IRQ also takes 7 cycles
+                // IRQ processing will begin in the next block
             }
         }
 
         if (processingNMI) {
             handleNMI();
-        } else if (isOpCode()) {
+        } else if (processingIRQ) {
+            handleIRQ();
+        } else if (isOpCode()) { // No active interrupt sequence, proceed with instruction
             decodeOpCode(fetch());
         } else {
             executeInstruction();
@@ -157,6 +187,17 @@ public class CPU {
         // Clock the APU after each CPU cycle
         if (apu != null) {
             apu.clock();
+            // After APU clock, check for APU triggered IRQs and assert/de-assert CPU's IRQ line
+            boolean apuWantsIRQ = apu.isDmcIrqAsserted() || apu.isFrameIrqAsserted();
+            if (apuWantsIRQ) {
+                assertIRQLine();
+            } else {
+                // This de-assertion might be too aggressive if other devices can assert IRQ.
+                // A more robust system might have multiple sources for IRQ line.
+                // For now, if APU is the only IRQ source, this is okay.
+                // deassertIRQLine(); // Or, IRQ line stays asserted until explicitly cleared by CPU after handling.
+                // Let's assume IRQ line stays asserted until explicitly cleared by CPU after handling or by device.
+            }
         }
     }
 
@@ -480,7 +521,52 @@ public class CPU {
                 // Final cycle: finish the NMI sequence.
                 processingNMI = false;
                 nmiPending = false;
+                interruptDisable = true; // NMI sets the I flag
             }
+        }
+    }
+
+    private void handleIRQ() {
+        // Standard IRQ sequence (7 cycles)
+        // Cycle 1: (Internal operation / Fetch next opcode, but it's ignored)
+        // Cycle 2: Push PCH
+        // Cycle 3: Push PCL
+        // Cycle 4: Push P (Status register with B flag = 0, bit 5 = 1)
+        // Cycle 5: Fetch low byte of IRQ vector ($FFFE)
+        // Cycle 6: Fetch high byte of IRQ vector ($FFFF), set PC
+        // Cycle 7: Set I flag, clear processingIRQ
+
+        switch (7 - remainingCycles + 1) { // Current cycle of the IRQ sequence (1 to 7)
+            case 1: // Cycle 1: Internal operations, fetch of next instruction opcode (ignored)
+                // read(pc); // Simulate fetch, though it's discarded
+                break;
+            case 2: // Cycle 2: Push PCH to stack
+                write(0x0100 | sp.getValue(), (pc >> 8) & 0xFF);
+                sp.decrement();
+                break;
+            case 3: // Cycle 3: Push PCL to stack
+                write(0x0100 | sp.getValue(), pc & 0xFF);
+                sp.decrement();
+                break;
+            case 4: // Cycle 4: Push Status Register to stack (B flag is 0 for IRQ)
+                write(0x0100 | sp.getValue(), flagsToBits(false)); // B flag (bit 4) is 0
+                sp.decrement();
+                break;
+            case 5: // Cycle 5: Fetch low byte of IRQ vector from $FFFE
+                currInstruction.effectiveAddress = read(0xFFFE);
+                break;
+            case 6: // Cycle 6: Fetch high byte of IRQ vector from $FFFF, update PC
+                int pch = read(0xFFFF);
+                pc = (pch << 8) | currInstruction.effectiveAddress;
+                break;
+            case 7: // Cycle 7: Finalize IRQ sequence
+                interruptDisable = true; // Set I flag
+                processingIRQ = false;   // Clear processing IRQ flag
+                // The irqLineAsserted flag should be cleared by the device or by the CPU acknowledging the source.
+                // For APU, reading $4015 clears frame IRQ. DMC IRQ clears on $4010 write or $4015 DMC disable.
+                // For now, we assume the game/APU logic will handle de-assertion of the source.
+                // If irqLineAsserted is not cleared by an external source, it might re-trigger if I flag is cleared.
+                break;
         }
     }
 

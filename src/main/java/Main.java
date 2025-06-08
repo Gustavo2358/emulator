@@ -21,6 +21,7 @@ public class Main {
         PPUImpl ppu = new PPUImpl(cartridge); // Pass cartridge to PPU constructor
         CPUBus bus = new CPUBus(wram, cartridge, ppu);
         CPU cpu = new CPU(bus);
+        bus.setCpu(cpu); // Set the CPU instance in the bus
 
         ppu.setCpu(cpu); // Set core.CPU instance in PPU for NMI
         ppu.setCpuBus(bus); // Ensure PPUImpl gets a reference to CPUBus

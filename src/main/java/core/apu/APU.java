@@ -1,5 +1,7 @@
 package core.apu; // Changed package declaration
 
+import core.CPUBus;
+
 import javax.sound.sampled.*;
 
 public class APU {
@@ -12,7 +14,6 @@ public class APU {
     public static final boolean BIG_ENDIAN = false;
     public static final double CPU_SPEED = 1789773.0; // NES CPU speed in Hz (NTSC)
     private static final double CPU_CYCLES_PER_AUDIO_SAMPLE = CPU_SPEED / SAMPLE_RATE;
-
 
     private SourceDataLine sourceDataLine;
     private byte currentDummySampleValue = 0; // For dummy sample generation - will be removed later
@@ -27,14 +28,35 @@ public class APU {
     private DMCChannel dmc; // Changed from Object to DMCChannel
 
     private CPUBus bus; // Reference to the bus for DMC memory access
-    private boolean irqAssertedByDMC = false;
 
+    // Frame Counter related fields
+    private int frameSequenceCounter; // Counts CPU cycles for frame sequencer timing
+    private int frameStep;            // Current step in the 4 or 5 step sequence
+    private boolean sequenceMode;     // 0 for 4-step, 1 for 5-step
+    private boolean irqInhibitFlag;   // True if frame IRQ is disabled
+    private boolean frameInterruptFlag; // True if frame interrupt has occurred
+
+    // NTSC CPU cycles for frame counter events (approximate)
+    // Derived from 240Hz clocking. CPU runs at 1789773 Hz.
+    // 1789773 / 240 = ~7457.38
+    // Step 1: ~7457
+    // Step 2: ~14913 (Step 1 + 7456)
+    // Step 3: ~22371 (Step 2 + 7458)
+    // Step 4 (4-step): ~29829 (Step 3 + 7458) -> Total ~29829, next cycle is reset
+    // Step 4 (5-step): ~29829 (No audio clocks)
+    // Step 5 (5-step): ~37281 (Step 4 + 7452) -> Total ~37281, next cycle is reset
+
+    private static final int[] NTSC_FRAME_COUNTER_SEQUENCE_4_STEP = {7457, 14913, 22371, 29829};
+    private static final int NTSC_FRAME_COUNTER_PERIOD_4_STEP = 29830; // Total cycles for 4-step sequence
+    private static final int[] NTSC_FRAME_COUNTER_SEQUENCE_5_STEP = {7457, 14913, 22371, 29829, 37281};
+    private static final int NTSC_FRAME_COUNTER_PERIOD_5_STEP = 37282; // Total cycles for 5-step sequence
 
     // Constructor
     public APU(CPUBus bus) { // Added CPUBus parameter
         this.bus = bus;
         // Initialize channel objects
         this.pulse1 = new PulseChannel();
+        this.pulse1.setIsPulse1(true); // Designate this as Pulse 1 for sweep quirk
         this.pulse2 = new PulseChannel();
         this.triangle = new TriangleChannel();
         this.noise = new NoiseChannel();
@@ -56,53 +78,12 @@ public class APU {
             // Handle appropriately - e.g., disable audio, log error
             sourceDataLine = null;
         }
+        this.frameSequenceCounter = 0;
+        this.frameStep = 0;
+        this.sequenceMode = false; // Default to 4-step
+        this.irqInhibitFlag = true; // Default to IRQ inhibited
+        this.frameInterruptFlag = false;
     }
-
-    // Placeholder methods for Pulse 1 channel - These might be removed or adapted
-    // if direct register writes are handled through the main writeRegister method.
-    // public void pulse1Enable(boolean enable) {
-    //     // This logic will likely move into PulseChannel or be controlled by $4015
-    // }
-
-    // public void pulse1WriteRegister(int register, byte value) {
-    //     // This is now handled by the main writeRegister method delegating to pulse1
-    // }
-
-    // Placeholder methods for Pulse 2 channel - Will be removed or adapted
-    // public void pulse2Enable(boolean enable) {
-    //     // TODO: Implement Pulse 2 enable/disable logic (likely via $4015)
-    // }
-
-    // public void pulse2WriteRegister(int register, byte value) {
-    //     // This is now handled by the main writeRegister method delegating to pulse2
-    // }
-
-    // Placeholder methods for Triangle channel - Will be removed or adapted
-    // public void triangleEnable(boolean enable) {
-    //     // TODO: Implement Triangle enable/disable logic (likely via $4015)
-    // }
-
-    // public void triangleWriteRegister(int register, byte value) {
-    //     // This is now handled by the main writeRegister method delegating to triangle
-    // }
-
-    // Placeholder methods for Noise channel - Will be removed or adapted
-    // public void noiseEnable(boolean enable) {
-    //     // TODO: Implement Noise enable/disable logic (likely via $4015)
-    // }
-
-    // public void noiseWriteRegister(int register, byte value) {
-    //     // This is now handled by the main writeRegister method delegating to noise
-    // }
-
-    // Placeholder methods for DMC channel - Will be removed or adapted
-    // public void dmcEnable(boolean enable) {
-    //     // TODO: Implement DMC enable/disable logic (Likely via $4015)
-    // }
-    // public void dmcWriteRegister(int register, byte value) {
-    //     // This is now handled by the main writeRegister method delegating to dmc
-    // }
-
 
     // Placeholder methods for memory-mapped register access
     public byte readRegister(int address) {
@@ -113,11 +94,12 @@ public class APU {
             if (pulse2.isLengthCounterActive()) status |= 0x02;
             if (triangle.isLengthCounterActive()) status |= 0x04;
             if (noise.isLengthCounterActive()) status |= 0x08;
-            // Bit 4 for DMC active status (bytes remaining > 0) is more complex.
-            // if (dmc.isActive()) status |= 0x10; // TODO: Implement dmc.isActive()
+            if (dmc.isActive()) status |= 0x10; // DMC active status
             if (dmc.isIRQAsserted()) status |= 0x80; // DMC IRQ
-            // TODO: Frame IRQ status bit 6
-            dmc.clearIRQ(); // IRQ flag is cleared on read of $4015
+            if (frameInterruptFlag) status |= 0x40; // Frame IRQ
+
+            frameInterruptFlag = false; // Reading $4015 clears the frame interrupt flag
+            // Reading $4015 does NOT clear the DMC IRQ flag. It's cleared by DMC itself or $4015 write disabling DMC.
             return status;
         }
         // Other APU registers are generally not readable or return open bus.
@@ -126,6 +108,20 @@ public class APU {
 
     public void writeRegister(int address, byte value) {
         // System.out.printf("APU Write Register: Address=0x%04X, Value=0x%02X%n", address, value);
+        // Log key register writes
+        if (address == 0x4015) {
+            System.out.printf("APU: Write to $4015 (Status/Enable): 0x%02X (P1:%b P2:%b T:%b N:%b D:%b)%n",
+                value & 0xFF,
+                (value & 0x01) != 0, (value & 0x02) != 0,
+                (value & 0x04) != 0, (value & 0x08) != 0,
+                (value & 0x10) != 0);
+        } else if (address == 0x4017) {
+            System.out.printf("APU: Write to $4017 (Frame Counter): 0x%02X (Mode:%s IRQInhibit:%b)%n",
+                value & 0xFF,
+                (value & 0x80) != 0 ? "5-step" : "4-step",
+                (value & 0x40) != 0);
+        }
+
         if (address >= 0x4000 && address <= 0x4003) { // Pulse 1 registers
             pulse1.writeRegister(address - 0x4000, value);
         } else if (address >= 0x4004 && address <= 0x4007) { // Pulse 2 registers
@@ -145,9 +141,25 @@ public class APU {
             if ((value & 0x10) == 0) { // If DMC is disabled, its IRQ is cleared
                 dmc.clearIRQ();
             }
+            // Writing to $4015 also clears DMC IRQ if DMC is disabled.
+            // Frame interrupt flag is not affected by $4015 writes directly, only by $4017 or reading $4015.
         } else if (address == 0x4017) { // Frame Counter Control
-            // TODO: Implement Frame Counter logic
             // System.out.println("Write to Frame Counter ($4017): " + String.format("0x%02X", value));
+            this.sequenceMode = (value & 0x80) != 0; // Bit 7: 0 for 4-step, 1 for 5-step
+            this.irqInhibitFlag = (value & 0x40) != 0; // Bit 6: 0 for IRQ enabled, 1 for IRQ disabled
+
+            this.frameSequenceCounter = 0; // Writing to $4017 resets the frame counter and its step.
+            this.frameStep = 0;
+            if (this.irqInhibitFlag) {
+                this.frameInterruptFlag = false; // Clear pending frame interrupt if inhibited
+            }
+
+            // If 5-step mode, clock all units immediately (half and quarter frame)
+            // This is a side effect of $4017 write if mode is 5-step.
+            if (this.sequenceMode) {
+                clockQuarterFrameUnits();
+                clockHalfFrameUnits();
+            }
         } else {
             // System.out.println("Unhandled APU register write: " + String.format("0x%04X", address));
         }
@@ -160,6 +172,8 @@ public class APU {
         byte t = triangle.getSample();
         byte n = noise.getSample();
         byte d = dmc.getSample(); // DMC output is 0-127
+
+        // System.out.printf("APU Samples: P1=%d, P2=%d, T=%d, N=%d, D=%d%n", p1, p2, t, n, d); // Log individual channel outputs
 
         // NES mixing is complex and non-linear. This is a placeholder.
         // Pulse output: 0-15. Triangle: 0-15. Noise: 0-15. DMC: 0-127.
@@ -189,7 +203,66 @@ public class APU {
     private void playSampleInternal(byte sample) {
         if (sourceDataLine != null && sourceDataLine.isActive()) {
             byte[] buffer = {sample};
+            // System.out.printf("APU Mixed Sample: %d (0x%02X)%n", sample & 0xFF, sample & 0xFF); // Log mixed sample played
             sourceDataLine.write(buffer, 0, 1);
+        }
+    }
+
+    private void clockQuarterFrameUnits() {
+        pulse1.clockEnvelope();
+        pulse2.clockEnvelope();
+        triangle.clockLinearCounter();
+        noise.clockEnvelope();
+    }
+
+    private void clockHalfFrameUnits() {
+        pulse1.clockLengthCounter();
+        pulse1.clockSweep();
+        pulse2.clockLengthCounter();
+        pulse2.clockSweep();
+        triangle.clockLengthCounter();
+        noise.clockLengthCounter();
+    }
+
+    private void clockFrameCounter() {
+        frameSequenceCounter++;
+
+        if (!sequenceMode) { // 4-step sequence
+            if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[0]) { // ~7457
+                clockQuarterFrameUnits();
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[1]) { // ~14913
+                clockQuarterFrameUnits();
+                clockHalfFrameUnits();
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[2]) { // ~22371
+                clockQuarterFrameUnits();
+            } else if (frameSequenceCounter >= NTSC_FRAME_COUNTER_PERIOD_4_STEP) { // ~29829 (end of step), reset on 29830
+                clockQuarterFrameUnits();
+                clockHalfFrameUnits();
+                if (!irqInhibitFlag) {
+                    frameInterruptFlag = true;
+                    // Signal actual IRQ to CPU if frameInterruptFlag is set
+                    if (this.bus != null && this.bus.getCpu() != null) {
+                        this.bus.getCpu().assertIRQLine();
+                    }
+                }
+                frameSequenceCounter = 0;
+            }
+        } else { // 5-step sequence
+            if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[0]) { // ~7457
+                clockQuarterFrameUnits();
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[1]) { // ~14913
+                clockQuarterFrameUnits();
+                clockHalfFrameUnits();
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[2]) { // ~22371
+                clockQuarterFrameUnits();
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[3]) { // ~29829
+                // No audio clocks on this step in 5-step mode
+            } else if (frameSequenceCounter >= NTSC_FRAME_COUNTER_PERIOD_5_STEP) { // ~37281 (end of step), reset on 37282
+                clockQuarterFrameUnits();
+                clockHalfFrameUnits();
+                // No IRQ in 5-step mode according to many sources
+                frameSequenceCounter = 0;
+            }
         }
     }
 
@@ -200,6 +273,9 @@ public class APU {
     public void clock() {
         // This clock is the CPU clock (approx 1.79MHz)
 
+        // Clock the Frame Counter first, as it might trigger other clocks
+        clockFrameCounter();
+
         // Channels are clocked by the APU's internal ~894kHz clock (CPU_clock / 2)
         // However, the PulseChannel's internal timer is clocked every APU cycle (which is every 2 CPU cycles).
         // For now, let's call pulse1.clock() directly on every CPU clock for simplicity,
@@ -207,20 +283,20 @@ public class APU {
         // More precise APU clocking (dividing CPU clock by 2 for some components) can be added later.
         pulse1.clock();
         pulse2.clock();
-        triangle.clock();
-        noise.clock();
-        dmc.clock();
-        // TODO: Clock Frame Counter here as well, which then clocks envelopes and length counters for P,T,N.
+        triangle.clock(); // Triangle timer is clocked at CPU rate
+        noise.clock();    // Noise timer is clocked at CPU rate
+
+        // Handle DMC stall request before clocking DMC
+        if (dmc.hasPendingStallRequest()) {
+            if (bus != null && bus.getCpu() != null) { // Ensure bus and cpu are available
+                bus.getCpu().stallForDMA(3); // Stall CPU for 3 cycles (placeholder)
+            }
+            dmc.clearPendingStallRequestAndSetNeedsFetch();
+            // DMC will fetch on its dmc.clock() call now
+        }
+        dmc.clock();      // DMC timer is clocked at CPU rate
 
         // Check for DMC IRQ
-        if (dmc.isIRQAsserted()) {
-            // TODO: Signal IRQ to CPU. This might involve:
-            // this.bus.cpu.triggerIRQ(IRQType.APU_DMC);
-            // For now, just a flag or print.
-            this.irqAssertedByDMC = true; // APU itself might hold this status for CPU to poll or direct line
-             System.out.println("DMC IRQ Asserted");
-        }
-
 
         // Audio sample generation timing (downsampling to SAMPLE_RATE)
         apuCycleAccumulator++;
@@ -229,6 +305,29 @@ public class APU {
             byte mixedSample = generateSampleInternal();
             playSampleInternal(mixedSample);
         }
+    }
+
+    // --- IRQ Related Methods for CPU Polling ---
+
+    public boolean isDmcIrqAsserted() {
+        return dmc.isIRQAsserted();
+    }
+
+    public void clearDmcIrq() {
+        // DMC IRQ is typically cleared by the DMC channel itself when conditions are met
+        // (e.g., $4010 write disabling IRQ, or $4015 disabling DMC channel).
+        // This method can be called if CPU needs to explicitly acknowledge/clear APU's view if necessary,
+        // but primary responsibility is in DMCChannel and game logic.
+        dmc.clearIRQ(); // Propagate to DMC channel
+    }
+
+    public boolean isFrameIrqAsserted() {
+        return frameInterruptFlag;
+    }
+
+    public void clearFrameIrq() {
+        // Frame IRQ is cleared by reading $4015 or by writing to $4017 that inhibits IRQs.
+        this.frameInterruptFlag = false;
     }
 
     // Call this when shutting down the emulator

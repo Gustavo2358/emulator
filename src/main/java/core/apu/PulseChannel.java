@@ -7,23 +7,34 @@ public class PulseChannel {
     private boolean constantVolume;     // 1 bit (envelope enable) -> $4000 SQ1_VOL / $4004 SQ2_VOL [V]
     private int envelopePeriodVolume;   // 4 bits (period for envelope or constant volume) -> $4000 SQ1_VOL / $4004 SQ2_VOL [N]
 
-    private boolean sweepEnabled;       // 1 bit -> $4001 SQ1_SWEEP / $4005 SQ2_SWEEP [E]
-    private int sweepPeriod;            // 3 bits -> $4001 SQ1_SWEEP / $4005 SQ2_SWEEP [P]
-    private boolean sweepNegate;        // 1 bit -> $4001 SQ1_SWEEP / $4005 SQ2_SWEEP [N]
-    private int sweepShift;             // 3 bits -> $4001 SQ1_SWEEP / $4005 SQ2_SWEEP [S]
+    // Sweep unit registers
+    private boolean sweepEnabledReg;    // $4001 bit 7 (Master enable)
+    private int sweepPeriodReg;         // $4001 bits 4-6 (P)
+    private boolean sweepNegateReg;     // $4001 bit 3 (N)
+    private int sweepShiftReg;          // $4001 bits 0-2 (S)
+
+    // Sweep unit internal state
+    private boolean sweepReloadFlag;    // Set by $4001 write
+    private int sweepDividerCounter;    // Counts down from sweepPeriodReg + 1
+    private boolean sweepMuting;        // True if sweep is muting the channel
+    private boolean isPulse1;           // Flag to distinguish between Pulse 1 and Pulse 2 for sweep negate quirk
 
     private int timerLow;               // 8 bits -> $4002 SQ1_LO / $4006 SQ2_LO
     private int timerHigh;              // 3 bits -> $4003 SQ1_HI / $4007 SQ2_HI [T high]
     private int lengthCounterLoad;      // 5 bits -> $4003 SQ1_HI / $4007 SQ2_HI [L]
 
     // Internal state
-    private int timerValue;             // Current value of the 11-bit timer period
-    private int timerCounter;           // Current countdown value for the timer
+    private int timerValue;             // This is the 11-bit PERIOD value (T) from registers $4002/3 or $4006/7
+    private int timerCounter;           // Current countdown value for the timer, counts T+1 APU half-cycles (CPU cycles)
     private int dutySequencePosition;   // Current position in the duty cycle sequence (0-7)
     private int currentVolume;          // Current volume (considering envelope)
     private int lengthCounter;          // Length counter
-    private boolean isEnabled;            // Channel enabled state (via $4015)
+    private boolean isEnabled;          // Channel enabled state (via $4015)
 
+    // Envelope unit state
+    private boolean envelopeStartFlag;  // Set when $4000/4 is written, to reset envelope
+    private int envelopeDecayLevel;     // Current decay level (0-15)
+    private int envelopeDividerCounter; // Counts down from envelopePeriodVolume + 1
 
     // Duty cycle sequences (8 steps per sequence)
     // 0: 01000000 (12.5%)
@@ -42,19 +53,26 @@ public class PulseChannel {
         this.lengthCounterHalt = false;
         this.constantVolume = false;
         this.envelopePeriodVolume = 0;
-        this.sweepEnabled = false;
-        this.sweepPeriod = 0;
-        this.sweepNegate = false;
-        this.sweepShift = 0;
+        this.sweepEnabledReg = false;
+        this.sweepPeriodReg = 0;
+        this.sweepNegateReg = false;
+        this.sweepShiftReg = 0;
         this.timerLow = 0;
         this.timerHigh = 0;
         this.lengthCounterLoad = 0;
-        this.timerValue = 0; // This stores the period, not the countdown
-        this.timerCounter = 0; // This is the actual countdown
+        this.timerValue = 0; // This stores the period T from registers
+        this.timerCounter = 0; // This is the actual countdown (T+1)
         this.dutySequencePosition = 0;
         this.currentVolume = 0;
         this.lengthCounter = 0;
         this.isEnabled = false;
+        this.envelopeStartFlag = false;
+        this.envelopeDecayLevel = 0;
+        this.envelopeDividerCounter = 0;
+        this.sweepReloadFlag = false;
+        this.sweepDividerCounter = 0;
+        this.sweepMuting = false;
+        this.isPulse1 = false; // Default to false, can be set by APU if needed
     }
 
     public void writeRegister(int register, byte value) {
@@ -64,24 +82,18 @@ public class PulseChannel {
                 this.lengthCounterHalt = (value & 0x20) != 0; // Also envelope loop
                 this.constantVolume = (value & 0x10) != 0;    // Also envelope disable
                 this.envelopePeriodVolume = value & 0x0F;
-                // If constantVolume is true, envelopePeriodVolume is the volume.
-                // Otherwise, it's the envelope period.
-                if (this.constantVolume) {
-                    this.currentVolume = this.envelopePeriodVolume;
-                } else {
-                    // TODO: Reset envelope
-                }
+                this.envelopeStartFlag = true; // Signal to reset envelope parameters
                 break;
             case 1: // $4001 or $4005 - Sweep
-                this.sweepEnabled = (value & 0x80) != 0;
-                this.sweepPeriod = (value >> 4) & 0x07;
-                this.sweepNegate = (value & 0x08) != 0;
-                this.sweepShift = value & 0x07;
-                // TODO: Reset sweep unit
+                this.sweepEnabledReg = (value & 0x80) != 0;
+                this.sweepPeriodReg = (value >> 4) & 0x07;
+                this.sweepNegateReg = (value & 0x08) != 0;
+                this.sweepShiftReg = value & 0x07;
+                this.sweepReloadFlag = true; // Signal to reload sweep parameters
                 break;
             case 2: // $4002 or $4006 - Timer Low
                 this.timerLow = value & 0xFF;
-                updateTimerValue();
+                updateTimerPeriod();
                 break;
             case 3: // $4003 or $4007 - Timer High / Length Counter Load
                 this.timerHigh = value & 0x07;
@@ -90,55 +102,61 @@ public class PulseChannel {
                 if (isEnabled) { // Only load if channel is enabled
                     this.lengthCounter = LengthCounterTable.LENGTH_TABLE[this.lengthCounterLoad];
                 }
-                // TODO: Envelope is reset.
+                this.envelopeStartFlag = true; // Writing to $4003/$4007 also resets envelope
                 this.dutySequencePosition = 0; // Reset duty sequence
                 break;
         }
     }
 
     private void updateTimerPeriod() {
-        this.timerValue = (this.timerHigh << 8) | this.timerLow;
-        // Timer counter should also be reloaded when period changes, but this is typically done
-        // when it reaches 0 or on specific events. For now, clock will handle reload.
+        this.timerValue = (this.timerHigh << 8) | this.timerLow; // This is T
+        // The timerCounter will be reloaded with T+1 in the clock() method when it reaches 0.
+        // Some emulators might force a reload of timerCounter here if the channel is active.
+        // For now, clock() handles the reload.
     }
 
-    public void clock() {
-        // Pulse channel timer is clocked every *other* CPU cycle (i.e., every APU cycle)
-        // The APU.clock() calls this method every CPU cycle. So we need a divider here, or adjust APU.
-        // For now, assume APU handles calling this at the correct rate (e.g. APU has an internal divider)
-        // or this clock() is expected to run at CPU speed and divide internally if needed for sub-components.
-        // The current APU.clock() calls this at CPU speed.
-        // The pulse timer itself counts down at CPU_CLK / 2.
-        // Let's assume this clock() is called at CPU_CLK / 2 rate by the APU's main clock logic.
-        // OR, if called at CPU rate, we count two calls to this clock() as one timer clock.
-        // For simplicity with current APU structure, let this be the "tick" that may or may not decrement the timer.
-        // The actual timer period is for these ticks.
+    // Pulse channel timer is clocked every CPU cycle by APU.clock().
+    // However, the *effective* clock for the pulse channel's internal timer/divider
+    // is half the CPU clock rate (i.e., once per APU cycle, where APU cycle = 2 CPU cycles).
+    // To achieve this, we can use a simple toggle or a counter within this clock method.
+    private boolean cpuClockToggle = false;
 
+    public void clock() {
+        cpuClockToggle = !cpuClockToggle;
+        if (!cpuClockToggle) {
+            // Skip this CPU clock cycle to effectively run at half speed (APU clock speed)
+            return;
+        }
+
+        // Now, proceed with timer logic, which effectively runs at APU clock speed.
         if (timerCounter > 0) {
             timerCounter--;
         } else {
-            timerCounter = this.timerValue; // Reload timer counter with the period value
-            // When timer output a clock, advance duty cycle sequence
+            // Timer period is T from registers. It counts T+1 APU half-cycles (CPU cycles).
+            // So, reload with timerValue (T) + 1.
+            timerCounter = this.timerValue + 1;
             dutySequencePosition = (dutySequencePosition + 1) % 8;
         }
-        // Note: Length Counter, Envelope, Sweep are clocked by Frame Counter, not here.
     }
 
     public byte getSample() {
-        if (!isEnabled || lengthCounter == 0) {
+        if (!isEnabled || lengthCounter == 0 || sweepMuting) { // Added sweepMuting condition
             return 0;
         }
-        // TODO: Sweep mute condition
-        // TODO: Proper envelope volume
 
         byte currentDutyOutput = DUTY_SEQUENCES[this.dutyCycle][this.dutySequencePosition];
 
         if (currentDutyOutput == 0) {
             return 0;
         }
-        // For now, use currentVolume which is set if constantVolume is true.
-        // Otherwise, envelope logic should update currentVolume.
-        return (byte) (this.currentVolume & 0x0F);
+
+        int outputVolume;
+        if (this.constantVolume) {
+            outputVolume = this.envelopePeriodVolume;
+        } else {
+            outputVolume = this.envelopeDecayLevel;
+        }
+        return (byte) (outputVolume & 0x0F);
     }
 
     // Called by Frame Counter
@@ -150,17 +168,90 @@ public class PulseChannel {
 
     // Called by Frame Counter
     public void clockEnvelope() {
-        // TODO: Implement envelope logic
-        // If not constant volume mode:
-        // Clock envelope divider. If divider reaches 0, clock envelope value.
-        // Update currentVolume based on envelope decay.
+        if (this.envelopeStartFlag) {
+            this.envelopeStartFlag = false;
+            this.envelopeDecayLevel = 15; // Start at volume 15
+            this.envelopeDividerCounter = this.envelopePeriodVolume + 1;
+        } else {
+            if (this.envelopeDividerCounter > 0) {
+                this.envelopeDividerCounter--;
+            } else {
+                this.envelopeDividerCounter = this.envelopePeriodVolume + 1; // Reload divider
+                if (this.envelopeDecayLevel > 0) {
+                    this.envelopeDecayLevel--;
+                } else if (this.lengthCounterHalt) { // If loop flag (lengthCounterHalt) is set
+                    this.envelopeDecayLevel = 15; // Loop back to 15
+                }
+            }
+        }
     }
 
     public void clockSweep() {
-        // TODO: Implement sweep unit logic
-        // Clock sweep divider. If divider reaches 0, calculate new period.
-        // Update timerValue if sweep is enabled and conditions are met.
-        // Mute channel if sweep results in invalid frequency.
+        if (this.sweepReloadFlag) {
+            this.sweepDividerCounter = this.sweepPeriodReg + 1;
+            this.sweepReloadFlag = false;
+            // The current timer period (timerValue) is used for the first calculation.
+            // Muting is also re-evaluated when sweep parameters change.
+            this.sweepMuting = isSweepMuting();
+        }
+
+        if (this.sweepDividerCounter > 0) {
+            this.sweepDividerCounter--;
+        }
+
+        if (this.sweepDividerCounter == 0) {
+            this.sweepDividerCounter = this.sweepPeriodReg + 1; // Reload divider
+
+            if (this.sweepEnabledReg && this.sweepShiftReg > 0 && !this.sweepMuting) {
+                int currentTimerPeriod = this.timerValue;
+                int changeAmount = currentTimerPeriod >> this.sweepShiftReg;
+                int targetPeriod;
+
+                if (this.sweepNegateReg) {
+                    targetPeriod = currentTimerPeriod - changeAmount;
+                    if (this.isPulse1) { // Sweep negate quirk for Pulse 1 ($4001)
+                        targetPeriod--;
+                    }
+                } else {
+                    targetPeriod = currentTimerPeriod + changeAmount;
+                }
+
+                if (targetPeriod > 0x7FF || currentTimerPeriod < 8) { // Check new muting condition
+                    this.sweepMuting = true;
+                } else {
+                    // this.sweepMuting = false; // Muting is only set true here, cleared by isSweepMuting()
+                    this.timerValue = targetPeriod;
+                    this.timerLow = this.timerValue & 0xFF;
+                    this.timerHigh = (this.timerValue >> 8) & 0x07;
+                }
+            }
+        }
+        // Update muting status based on current conditions, not just when calculation happens
+        this.sweepMuting = isSweepMuting();
+    }
+
+    // Helper to determine if sweep should be muting
+    private boolean isSweepMuting() {
+        if (!this.sweepEnabledReg) return false; // Not muting if sweep is disabled
+        if (this.timerValue < 8) return true; // Muting if current period < 8
+
+        // Calculate target period without actually changing timerValue yet
+        int currentTimerPeriod = this.timerValue;
+        int changeAmount = currentTimerPeriod >> this.sweepShiftReg;
+        int targetPeriod;
+        if (this.sweepNegateReg) {
+            targetPeriod = currentTimerPeriod - changeAmount;
+            if (this.isPulse1) targetPeriod--;
+        } else {
+            targetPeriod = currentTimerPeriod + changeAmount;
+        }
+        if (targetPeriod > 0x7FF) return true; // Muting if target period > $7FF
+
+        return false; // Not muting otherwise
+    }
+
+    public void setIsPulse1(boolean isPulse1) {
+        this.isPulse1 = isPulse1;
     }
 
     public void setEnabled(boolean enabled) {

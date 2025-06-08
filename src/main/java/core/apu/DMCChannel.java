@@ -27,6 +27,8 @@ public class DMCChannel {
     private byte outputLevel;           // 7-bit DAC output level (0-127)
 
     private boolean irqPending;
+    private boolean pendingStallRequest = false; // True if DMC requests a CPU stall for memory fetch
+    private boolean needsToFetchByte = false;    // True if DMC is ready to fetch a byte after CPU stall
 
     // NTSC DMC Period Lookup Table (CPU cycles per output bit)
     private static final int[] NTSC_DMC_PERIOD_TABLE = {
@@ -56,7 +58,7 @@ public class DMCChannel {
                 this.irqEnabled = (value & 0x80) != 0;
                 this.loopFlag = (value & 0x40) != 0;
                 this.rateIndex = value & 0x0F;
-                this.timerValue = NTSC_DMC_PERIOD_TABLE[this.rateIndex];
+                // Timer value is reloaded in clock() when it reaches 0, using NTSC_DMC_PERIOD_TABLE[this.rateIndex]
                 if (!this.irqEnabled) {
                     this.irqPending = false;
                 }
@@ -89,6 +91,23 @@ public class DMCChannel {
     }
 
     public void clock() {
+        if (needsToFetchByte) {
+            // This part is executed after APU has stalled CPU and called clearPendingStallRequestAndSetNeedsFetch()
+            if (bytesRemaining > 0) { // Should always be true if needsToFetchByte is true
+                sampleBuffer = (byte) bus.read(currentAddress);
+                currentAddress++; // Simple increment, relies on mapper for $C000-$FFFF range
+                                  // If currentAddress wraps 0xFFFF->0x0000, it reads from new address via bus.
+                bytesRemaining--;
+                sampleBufferEmpty = false;
+                bitsRemainingInShifter = 8;
+            } else {
+                // This case should ideally not be reached if logic setting needsToFetchByte is correct
+                // (i.e., it only sets it if bytesRemaining > 0 or loop re-initializes)
+                sampleBufferEmpty = true; // Ensure it's marked empty
+            }
+            needsToFetchByte = false; // Consumed the fetch request
+        }
+
         if (!isEnabled) {
             return;
         }
@@ -98,58 +117,43 @@ public class DMCChannel {
         } else {
             timerValue = NTSC_DMC_PERIOD_TABLE[this.rateIndex]; // Reload timer
 
-            if (bitsRemainingInShifter == 0) { // Current byte processed, need new one or new bit from current
+            if (bitsRemainingInShifter == 0) {
                 if (sampleBufferEmpty) {
                     if (bytesRemaining > 0) {
-                        // TODO: CPU STALL for 1-4 cycles if memory access is slow
-                        // For now, assume instant fetch
-                        sampleBuffer = (byte) bus.read(currentAddress);
-                        currentAddress = (currentAddress + 1);
-                        if (currentAddress == 0) currentAddress = 0x8000; // Address wrap around $FFFF -> $8000 for some mappers? Usually $C000-$FFFF is ROM.
-                                                                        // For DMC, it's typically $C000-$FFFF. Wrap is not standard.
-                                                                        // If currentAddress goes beyond $FFFF, it should wrap to $8000 for open bus reads on some systems,
-                                                                        // but for DMC, it might just stop or read garbage.
-                                                                        // Let's assume no wrap for now for simplicity or wrap within its range if specified.
-                        bytesRemaining--;
-                        sampleBufferEmpty = false;
-                        bitsRemainingInShifter = 8;
+                        this.pendingStallRequest = true;
+                        return; // Exit clock, APU will handle stall & call clearPendingStallRequestAndSetNeedsFetch
                     } else { // No bytes remaining
                         if (loopFlag) {
-                            restartSample();
-                            // Need to fetch the first byte for the looped sample
+                            restartSample(); // Sets currentAddress and bytesRemaining
                             if (bytesRemaining > 0) { // If restartSample actually found a sample
-                                // TODO: CPU STALL
-                                sampleBuffer = (byte) bus.read(currentAddress);
-                                currentAddress = (currentAddress + 1);
-                                bytesRemaining--; // Byte is consumed for the buffer
-                                sampleBufferEmpty = false;
-                                bitsRemainingInShifter = 8;
+                                this.pendingStallRequest = true;
+                                return; // Exit for stall before fetching the first byte of looped sample
                             }
                         } else if (irqEnabled) {
                             irqPending = true;
                         }
-                        // If no loop and no IRQ, or if IRQ already pending, channel remains silent until next $4015 write or $4013 write.
-                        // If not looping and bytesRemaining is 0, no more bits to shift.
-                        if (bytesRemaining == 0) return; // Nothing more to do this clock cycle if no data
+                        // If not looping and bytesRemaining is 0 (still), no more bits to shift.
+                        if (bytesRemaining == 0 && sampleBufferEmpty) return; // Nothing more to do
                     }
                 }
             }
 
+            // Shifter and output logic (only if sample buffer is not empty and has bits)
+            if (!sampleBufferEmpty && bitsRemainingInShifter > 0) {
+                int bitToOutput = (sampleBuffer & 0x01); // Get LSB
 
-            if (bitsRemainingInShifter > 0) { // If there's a bit to process
-                int bit = sampleBuffer & 1; // Get LSB
-                sampleBuffer >>= 1;
-                bitsRemainingInShifter--;
-
-                if (bit == 1) { // Increase DAC output
-                    if (outputLevel <= 125) {
+                if (bitToOutput == 1) { // Increase DAC output
+                    if (outputLevel <= 125) { // Max is 127, increment by 2 should not exceed if <=125
                         outputLevel += 2;
                     }
                 } else { // Decrease DAC output
-                    if (outputLevel >= 2) {
+                    if (outputLevel >= 2) { // Min is 0, decrement by 2 should not go below if >=2
                         outputLevel -= 2;
                     }
                 }
+                sampleBuffer >>= 1; // Consume the LSB
+                bitsRemainingInShifter--;
+
                 if (bitsRemainingInShifter == 0) {
                     sampleBufferEmpty = true; // Mark buffer as empty to fetch next byte on next appropriate clock
                 }
@@ -176,8 +180,21 @@ public class DMCChannel {
         }
     }
 
+    public boolean hasPendingStallRequest() {
+        return pendingStallRequest;
+    }
+
+    public void clearPendingStallRequestAndSetNeedsFetch() {
+        this.pendingStallRequest = false;
+        this.needsToFetchByte = true;
+    }
+
     public boolean isIRQAsserted() {
         return irqPending;
+    }
+
+    public boolean isActive() { // Added method for $4015 status
+        return bytesRemaining > 0;
     }
 
     public void clearIRQ() {

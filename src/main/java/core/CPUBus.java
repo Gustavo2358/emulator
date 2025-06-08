@@ -10,6 +10,7 @@ public class CPUBus implements Bus {
     private final APU apu; // APU instance from core.apu package
     private Controller controller1;
     private Controller controller2;
+    private CPU cpu; // Reference to the CPU
 
     public CPUBus(WRAM wram, Cartridge cartridge, PPU ppu) {
         this.wram = wram;
@@ -20,6 +21,14 @@ public class CPUBus implements Bus {
         this.controller2 = new Controller();
     }
 
+    public void setCpu(CPU cpu) {
+        this.cpu = cpu;
+    }
+
+    public CPU getCpu() {
+        return this.cpu;
+    }
+
     @Override
     public int read(int address) {
         address &= 0xFFFF; // Ensure address is within 16-bit range
@@ -27,7 +36,7 @@ public class CPUBus implements Bus {
             return wram.read(address);
         } else if (address < 0x4000) { // $2000-$3FFF: PPU registers
             return ppu.read(address);
-        } else if (address >= 0x4000 && address <= 0x4017) { // APU registers including $4016, $4017
+        } else if (address <= 0x4017) { // APU registers including $4016, $4017
             if (address == 0x4016) { // Controller 1
                 return controller1.read();
             } else if (address == 0x4017) { // Controller 2
@@ -36,19 +45,20 @@ public class CPUBus implements Bus {
             }
             // APU specific registers. $4015 is readable. Others might be open bus on read.
             return apu.readRegister(address);
-        } else if (address >= 0x4018 && address <= 0x401F) { // Disabled APU/IO range
+        } else if (address <= 0x401F) { // Disabled APU/IO range ($4018-$401F)
             // These are typically open bus or unmapped.
             // System.out.printf("CPUBus: Read from disabled APU/IO $%04X (open bus)\n", address);
             return 0; // Open bus behavior
-        } else if (address >= 0x4020) { // Cartridge space starts typically from $4020 or $6000
+        } else { // Cartridge space starts typically from $4020 or $6000 ($4020-$FFFF)
             return cartridge.cpuRead(address);
         }
         // Note: $4014 (OAMDMA) is write-only. Reads usually return open bus or last written value to internal bus,
         // but for simplicity, we can treat it as unmapped here if not explicitly handled by APU or PPU.
         // The original code had a specific check for 0x4014 returning 0, which is fine.
-        if (address == 0x4014) return 0; // OAMDMA read (typically not readable)
-
-        return 0; // Default for unhandled reads or open bus behavior
+        // This part of the code is now unreachable due to the structure of the if/else if chain.
+        // Consider restructuring if 0x4014 needs special handling outside the $4000-$4017 range.
+        // For now, assuming $4014 is handled by APU or PPU read logic if it falls in their range,
+        // or it's not a readable register. The current logic places it within APU range.
     }
 
     @Override
@@ -58,20 +68,20 @@ public class CPUBus implements Bus {
 
         if (address < 0x2000) { // $0000-$1FFF: core.WRAM (mirrored every 0x800 bytes)
             wram.write(address, value);
-        } else if (address >= 0x2000 && address < 0x4000) { // $2000-$3FFF: PPU registers (mirrored every 8 bytes)
+        } else if (address < 0x4000) { // $2000-$3FFF: PPU registers (mirrored every 8 bytes)
             ppu.write(address, value);
         } else if (address == 0x4014) { // OAMDMA register
             ppu.startOAMDMA(value); // 'value' is the high byte of the source CPU RAM address (page number)
         } else if (address == 0x4016) { // core.Controller 1 Strobe
             controller1.write(value);
-        } else if (address >= 0x4000 && address <= 0x4017) { // APU registers ($4000-$4013, $4015, $4017)
-                                                            // $4017 is also Controller 2 strobe
+        } else if (address <= 0x4017) { // APU registers ($4000-$4013, $4015, $4017)
+                                        // $4017 is also Controller 2 strobe
             if (address == 0x4017) {
                 controller2.write(value); // Controller 2 strobe
                 // Also pass to APU for Frame Counter
             }
-            apu.writeRegister(address, value);
-        } else if (address >= 0x4018 && address <= 0x401F) { // Disabled APU/IO range
+            apu.writeRegister(address, (byte) value);
+        } else if (address <= 0x401F) { // Disabled APU/IO range ($4018-$401F)
             // Writes to this range are typically ignored.
             // System.out.printf("CPUBus: Write to disabled APU/IO $%04X = $%02X (ignored)\n", address, value);
         } else if (address >= 0x6000) { // Cartridge PRG RAM ($6000-$7FFF) / PRG ROM ($8000-$FFFF)

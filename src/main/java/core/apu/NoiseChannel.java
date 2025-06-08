@@ -16,6 +16,12 @@ public class NoiseChannel {
     private int shiftRegister;          // 15-bit Linear Feedback Shift Register (LFSR)
     private int currentVolume;          // Current volume (set by envelope or constantVolume)
     private int lengthCounter;
+    private boolean channelEnabledBy4015; // Tracks if $4015 has enabled this channel
+
+    // Envelope unit state (similar to PulseChannel)
+    private boolean envelopeStartFlag;
+    private int envelopeDecayLevel;
+    private int envelopeDividerCounter;
 
     // NTSC Noise Period Lookup Table
     // These are the timer periods for the noise channel on NTSC systems.
@@ -36,19 +42,19 @@ public class NoiseChannel {
         this.timerValue = NTSC_NOISE_PERIOD_TABLE[0]; // Initial timer period
         this.currentVolume = 0;
         this.lengthCounter = 0;
+        this.channelEnabledBy4015 = false;
+        this.envelopeStartFlag = false;
+        this.envelopeDecayLevel = 0;
+        this.envelopeDividerCounter = 0;
     }
 
     public void writeRegister(int register, byte value) {
         switch (register) {
             case 0: // $400C - Envelope Control
-                this.lengthCounterHalt = (value & 0x20) != 0;
-                this.constantVolume = (value & 0x10) != 0;
+                this.lengthCounterHalt = (value & 0x20) != 0; // Also envelope loop flag
+                this.constantVolume = (value & 0x10) != 0;    // Also envelope disable
                 this.envelopePeriodVolume = value & 0x0F;
-                if (this.constantVolume) {
-                    this.currentVolume = this.envelopePeriodVolume;
-                } else {
-                    // TODO: Reset envelope
-                }
+                this.envelopeStartFlag = true; // Signal to reset envelope parameters
                 break;
             case 1: // $400D - Unused
                 break;
@@ -59,10 +65,11 @@ public class NoiseChannel {
                 break;
             case 3: // $400F - Length Counter Load
                 this.lengthCounterLoad = (value >> 3) & 0x1F;
-                if (isEnabled()) { // Only load if channel is enabled (via $4015 status register)
+                if (this.channelEnabledBy4015) { // Only load if channel is enabled (via $4015 status register)
                      this.lengthCounter = LengthCounterTable.LENGTH_TABLE[this.lengthCounterLoad];
                 }
-                // TODO: Envelope is reset
+                // Writing to $400F does NOT reset the envelope for the noise channel.
+                // this.envelopeStartFlag = true; // This is incorrect for noise channel
                 break;
         }
     }
@@ -95,8 +102,14 @@ public class NoiseChannel {
         if ((shiftRegister & 1) == 1 || lengthCounter == 0) {
             return 0;
         }
-        // Otherwise, output is current envelope volume
-        return (byte) (currentVolume & 0x0F);
+
+        int outputVolume;
+        if (this.constantVolume) {
+            outputVolume = this.envelopePeriodVolume;
+        } else {
+            outputVolume = this.envelopeDecayLevel;
+        }
+        return (byte) (outputVolume & 0x0F);
     }
 
     // Called by Frame Counter
@@ -108,24 +121,37 @@ public class NoiseChannel {
 
     // Called by Frame Counter
     public void clockEnvelope() {
-        // TODO: Implement envelope logic
-        // If not constant volume mode:
-        // Clock envelope divider. If divider reaches 0, clock envelope value.
-        // Update currentVolume based on envelope decay.
-        if (constantVolume) {
-            this.currentVolume = this.envelopePeriodVolume;
+        if (this.envelopeStartFlag) {
+            this.envelopeStartFlag = false;
+            this.envelopeDecayLevel = 15; // Start at volume 15
+            this.envelopeDividerCounter = this.envelopePeriodVolume + 1;
         } else {
-            // Actual envelope logic will go here
+            if (this.envelopeDividerCounter > 0) {
+                this.envelopeDividerCounter--;
+            } else {
+                this.envelopeDividerCounter = this.envelopePeriodVolume + 1; // Reload divider
+                if (this.envelopeDecayLevel > 0) {
+                    this.envelopeDecayLevel--;
+                } else if (this.lengthCounterHalt) { // If loop flag (lengthCounterHalt) is set
+                    this.envelopeDecayLevel = 15; // Loop back to 15
+                }
+            }
         }
     }
 
-    private boolean isEnabled = false; // Internal enabled state, controlled by $4015
     public void setEnabled(boolean enabled) {
-        this.isEnabled = enabled;
+        this.channelEnabledBy4015 = enabled;
         if (!enabled) {
             this.lengthCounter = 0;
         }
         // Enabling does not immediately reload length counter.
+        // It's reloaded if $400F is written while channel is enabled by $4015
+        // or when $4015 enables a channel that has a pending length load.
+        // The latter part is typically handled in APU's $4015 write logic.
+    }
+
+    public boolean isEnabled() {
+        return this.channelEnabledBy4015;
     }
 
     public boolean isLengthCounterActive() {

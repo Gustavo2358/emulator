@@ -1,6 +1,5 @@
 package core.apu;
 
-package core.apu;
 
 // Utility class for APU constants, could be in its own file.
 class LengthCounterTable {
@@ -25,6 +24,7 @@ public class TriangleChannel {
 
     // Internal state
     private int timerValue;               // Current value of the 11-bit timer (period)
+    private int internalTimerPeriod;      // Stores the T+1 value
     private int linearCounter;            // Current value of the linear counter
     private int lengthCounter;            // Current value of the length counter
     private int sequencePosition;         // Current step in the 32-step sequence (0-31)
@@ -44,7 +44,8 @@ public class TriangleChannel {
         this.timerHigh = 0;
         this.lengthCounterLoad = 0;
 
-        this.timerValue = 0;
+        this.timerValue = 0; // This is the countdown timer
+        this.internalTimerPeriod = 1; // Default to a minimal period to avoid division by zero or issues
         this.linearCounter = 0;
         this.lengthCounter = 0;
         this.sequencePosition = 0;
@@ -80,21 +81,15 @@ public class TriangleChannel {
 
     private void updateTimerPeriod() {
         // Timer period for triangle is (timerHigh << 8) | timerLow + 1
-        // This is what the timer counts down *from*.
-        // The actual clocking of the sequencer happens when this timer reaches 0.
-        // The value written to registers is T. The period is T+1.
-        // For now, timerValue will store the loaded T value, and clock will handle T+1 logic.
-        // This is slightly different from pulse where timerValue is the current countdown.
-        // Let's keep it consistent: timerValue is the current countdown value.
-        // So, when registers are written, the period is set.
-        // The actual value loaded into the timer counter will be this period.
-        // We will set an internal 'period' variable.
+        this.internalTimerPeriod = ((this.timerHigh << 8) | this.timerLow) + 1;
+        // The timerValue (countdown) is reloaded in clock() when it reaches 0.
+        // Some emulators might reload timerValue here immediately if the new period is different.
+        // For now, we stick to reloading only when timerValue hits 0.
     }
 
     private int getTimerPeriod() {
-        return ((this.timerHigh << 8) | this.timerLow) + 1;
+        return this.internalTimerPeriod;
     }
-
 
     public void clock() {
         // Timer unit: clocks sequencer
