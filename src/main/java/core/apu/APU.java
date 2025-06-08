@@ -65,18 +65,39 @@ public class APU {
         try {
             AudioFormat audioFormat = new AudioFormat(SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS, SIGNED, BIG_ENDIAN);
             DataLine.Info info = new DataLine.Info(SourceDataLine.class, audioFormat);
+
             if (!AudioSystem.isLineSupported(info)) {
-                System.err.println("Audio line not supported: " + audioFormat);
-                return;
+                // Log a clear error message
+                String errorMessage = "Audio line not supported for format: " + audioFormat;
+                System.err.println("APU Error: " + errorMessage);
+                // Throw a runtime exception
+                throw new RuntimeException(errorMessage);
             }
+
             sourceDataLine = (SourceDataLine) AudioSystem.getLine(info);
             sourceDataLine.open(audioFormat);
             sourceDataLine.start();
-            System.out.println("SourceDataLine initialized and started for APU.");
+            System.out.println("APU: SourceDataLine initialized and started successfully.");
+
         } catch (LineUnavailableException e) {
+            // Log a clear error message
+            String errorMessage = "Audio line unavailable: " + e.getMessage();
+            System.err.println("APU Error: " + errorMessage);
+            e.printStackTrace(); // Keep original stack trace for debugging
+            // Re-throw the exception as a runtime exception
+            throw new RuntimeException("Failed to initialize audio line due to LineUnavailableException", e);
+        } catch (SecurityException e) {
+            // Catch potential SecurityExceptions if audio system access is restricted
+            String errorMessage = "Audio system access denied: " + e.getMessage();
+            System.err.println("APU Error: " + errorMessage);
             e.printStackTrace();
-            // Handle appropriately - e.g., disable audio, log error
-            sourceDataLine = null;
+            throw new RuntimeException("Failed to initialize audio line due to SecurityException", e);
+        } catch (IllegalArgumentException e) {
+            // Catch potential IllegalArgumentExceptions from AudioFormat or other setup
+            String errorMessage = "Illegal argument during audio setup: " + e.getMessage();
+            System.err.println("APU Error: " + errorMessage);
+            e.printStackTrace();
+            throw new RuntimeException("Failed to initialize audio line due to IllegalArgumentException", e);
         }
         this.frameSequenceCounter = 0;
         this.frameStep = 0;
