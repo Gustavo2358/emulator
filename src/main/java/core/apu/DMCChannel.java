@@ -29,6 +29,7 @@ public class DMCChannel {
     private boolean irqPending;
     private boolean pendingStallRequest = false; // True if DMC requests a CPU stall for memory fetch
     private boolean needsToFetchByte = false;    // True if DMC is ready to fetch a byte after CPU stall
+    private int stallCyclesRemaining = 0;       // Counter for DMC stall duration
 
     // NTSC DMC Period Lookup Table (CPU cycles per output bit)
     private static final int[] NTSC_DMC_PERIOD_TABLE = {
@@ -94,6 +95,11 @@ public class DMCChannel {
     }
 
     public void clock() {
+        if (stallCyclesRemaining > 0) {
+            stallCyclesRemaining--;
+            return; // DMC is stalled, do nothing else
+        }
+
         if (needsToFetchByte) {
             // This part is executed after APU has stalled CPU and called clearPendingStallRequestAndSetNeedsFetch()
             if (bytesRemaining > 0 && bus != null) { // Added null check for bus
@@ -124,12 +130,14 @@ public class DMCChannel {
                 if (sampleBufferEmpty) {
                     if (bytesRemaining > 0) {
                         this.pendingStallRequest = true;
+                        this.stallCyclesRemaining = 4; // Stall for 4 cycles
                         return; // Exit clock, APU will handle stall & call clearPendingStallRequestAndSetNeedsFetch
                     } else { // No bytes remaining
                         if (loopFlag) {
                             restartSample(); // Sets currentAddress and bytesRemaining
                             if (bytesRemaining > 0) { // If restartSample actually found a sample
                                 this.pendingStallRequest = true;
+                                this.stallCyclesRemaining = 4; // Stall for 4 cycles
                                 return; // Exit for stall before fetching the first byte of looped sample
                             }
                         } else if (irqEnabled) {

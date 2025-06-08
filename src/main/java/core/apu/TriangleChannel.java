@@ -108,14 +108,6 @@ public class TriangleChannel {
         // if this.timerValue = 0 -> this.timerValue = -1. Then if(-1 == 0) is false.
         // This means if timerValue is ever 0 when clock() is called, it will go to -1 and never reload
         // unless something else sets timerValue.
-        // Let's add a line to reset timerValue if it's 0 when the period updates.
-        // This seems like a sensible addition to prevent timer stall.
-        if (this.timerValue == 0 && this.internalTimerPeriod > 0) {
-             // If the timer is currently at 0 (e.g. initial state or just expired but period changed before reload)
-             // and a new valid period is set, make the new period take effect immediately for the countdown.
-             // This prevents the timer from potentially stalling at -1 if clock() is called when timerValue is 0.
-            this.timerValue = this.internalTimerPeriod;
-        }
     }
 
     private int getTimerPeriod() {
