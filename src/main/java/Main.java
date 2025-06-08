@@ -36,8 +36,7 @@ public class Main {
         cpu.fetchProgramCounter();
 
         SwingUtilities.invokeLater(() -> {
-            APU apuInstance = bus.getAPU(); // Get APU from bus again for UI
-            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu, apuInstance);
+            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu, apu); // Use the 'apu' instance directly
             emulatorUI.setVisible(true);
             emulatorUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

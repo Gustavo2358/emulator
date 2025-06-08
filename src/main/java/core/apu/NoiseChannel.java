@@ -75,10 +75,13 @@ public class NoiseChannel {
     }
 
     public void clock() {
+        // Timer is clocked at CPU rate. APU.clock() calls this method each CPU cycle.
         if (timerValue > 0) {
             timerValue--;
         } else {
-            timerValue = NTSC_NOISE_PERIOD_TABLE[this.noisePeriodIndex]; // Reload timer
+            // When timer reaches 0, reload it with the period from the table
+            // and clock the shift register.
+            timerValue = NTSC_NOISE_PERIOD_TABLE[this.noisePeriodIndex];
 
             // Clock the shift register
             int bit0 = shiftRegister & 1;

@@ -25,7 +25,7 @@ public class PulseChannel {
 
     // Internal state
     private int timerValue;             // This is the 11-bit PERIOD value (T) from registers $4002/3 or $4006/7
-    private int timerCounter;           // Current countdown value for the timer, counts T+1 APU half-cycles (CPU cycles)
+    private int timerCounter;           // Current countdown value for the timer, counts T+1 of its own clock ticks
     private int dutySequencePosition;   // Current position in the duty cycle sequence (0-7)
     private int currentVolume;          // Current volume (considering envelope)
     private int lengthCounter;          // Length counter
@@ -115,25 +115,16 @@ public class PulseChannel {
         // For now, clock() handles the reload.
     }
 
-    // Pulse channel timer is clocked every CPU cycle by APU.clock().
-    // However, the *effective* clock for the pulse channel's internal timer/divider
-    // is half the CPU clock rate (i.e., once per APU cycle, where APU cycle = 2 CPU cycles).
-    // To achieve this, we can use a simple toggle or a counter within this clock method.
-    private boolean cpuClockToggle = false;
+    public void clock() { // This method is now assumed to be called by APU at the channel's timer rate (CPU_freq / 2)
+        // The APU is responsible for calling this method at a rate of CPU_CLOCK / 2.
 
-    public void clock() {
-        cpuClockToggle = !cpuClockToggle;
-        if (!cpuClockToggle) {
-            // Skip this CPU clock cycle to effectively run at half speed (APU clock speed)
-            return;
-        }
-
-        // Now, proceed with timer logic, which effectively runs at APU clock speed.
+        // Proceed with timer logic.
         if (timerCounter > 0) {
             timerCounter--;
         } else {
-            // Timer period is T from registers. It counts T+1 APU half-cycles (CPU cycles).
-            // So, reload with timerValue (T) + 1.
+            // Timer period is T from registers (timerValue). It counts T+1 of its own clock ticks.
+            // Each tick for the pulse channel timer corresponds to 2 CPU cycles.
+            // When timerCounter reaches 0, it's reloaded with timerValue + 1.
             timerCounter = this.timerValue + 1;
             dutySequencePosition = (dutySequencePosition + 1) % 8;
         }

@@ -141,17 +141,9 @@ public class TriangleChannel {
             //    linearCounter > 0
             //    lengthCounter > 0
             if (this.lengthCounter > 0 && this.linearCounter > 0) {
-                // Note: The problem statement does not ask to gate sequencer advancement
-                // here based on the timer period's value (e.g. if period < 2), only in getSample().
                 this.sequencePosition = (this.sequencePosition + 1) % 32;
             }
         }
-        // Note: This implementation relies on timerValue being initialized to a value > 0
-        // (e.g., to internalTimerPeriod when the timer's period is set or channel is reset).
-        // If timerValue starts at 0 (e.g., from default constructor `this.timerValue = 0;`)
-        // and is not otherwise updated, it will decrement to -1. The `if (this.timerValue == 0)`
-        // condition will then not be met, and the timer might stall or behave incorrectly
-        // until it wraps around or is explicitly reset by other code.
     }
 
     public byte getSample() {

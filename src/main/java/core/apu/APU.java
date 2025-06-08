@@ -37,6 +37,8 @@ public class APU {
     private boolean frameInterruptFlag; // True if frame interrupt has occurred
     private core.CPU cpu; // Reference to CPU for IRQ
 
+    private boolean apuHalfClockToggle = false; // For CPU/2 clocking
+
     // NTSC CPU cycles for frame counter events (approximate)
     // Derived from 240Hz clocking. CPU runs at 1789773 Hz.
     // 1789773 / 240 = ~7457.38
@@ -255,38 +257,45 @@ public class APU {
     }
 
     private void clockFrameCounter() {
-        frameSequenceCounter++;
+        frameSequenceCounter++; // Incremented at the start of each APU clock (CPU cycle)
 
-        if (!sequenceMode) { // 4-step sequence
-            if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[0]) { // ~7457
+        if (!sequenceMode) { // 4-step sequence (Mode 0)
+            if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[0]) { // Step 1: ~7457 cycles
                 clockQuarterFrameUnits();
-            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[1]) { // ~14913
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[1]) { // Step 2: ~14913 cycles
                 clockQuarterFrameUnits();
                 clockHalfFrameUnits();
-            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[2]) { // ~22371
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[2]) { // Step 3: ~22371 cycles
                 clockQuarterFrameUnits();
-            } else if (frameSequenceCounter >= NTSC_FRAME_COUNTER_PERIOD_4_STEP) { // ~29829 (end of step), reset on 29830
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_4_STEP[3]) { // Step 4: ~29829 cycles
                 clockQuarterFrameUnits();
                 clockHalfFrameUnits();
                 if (!irqInhibitFlag) {
                     frameInterruptFlag = true;
+                    // if (cpu != null) cpu.triggerIRQ(); // Actual IRQ assertion handled by CPU polling this flag
                 }
-                frameSequenceCounter = 0; // Reset the counter
             }
-        } else { // 5-step sequence
-            if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[0]) { // ~7457
+
+            if (frameSequenceCounter >= NTSC_FRAME_COUNTER_PERIOD_4_STEP) { // Reset at ~29830 cycles
+                frameSequenceCounter = 0;
+            }
+        } else { // 5-step sequence (Mode 1)
+            if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[0]) { // Step 1: ~7457 cycles
                 clockQuarterFrameUnits();
-            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[1]) { // ~14913
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[1]) { // Step 2: ~14913 cycles
                 clockQuarterFrameUnits();
                 clockHalfFrameUnits();
-            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[2]) { // ~22371
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[2]) { // Step 3: ~22371 cycles
                 clockQuarterFrameUnits();
-            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[3]) { // ~29829
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[3]) { // Step 4: ~29829 cycles
                 // No audio clocks on this step in 5-step mode
-            } else if (frameSequenceCounter >= NTSC_FRAME_COUNTER_PERIOD_5_STEP) { // ~37281 (end of step), reset on 37282
+            } else if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[4]) { // Step 5: ~37281 cycles
                 clockQuarterFrameUnits();
                 clockHalfFrameUnits();
-                // No IRQ in 5-step mode according to many sources
+                // No IRQ in 5-step mode
+            }
+
+            if (frameSequenceCounter >= NTSC_FRAME_COUNTER_PERIOD_5_STEP) { // Reset at ~37282 cycles
                 frameSequenceCounter = 0;
             }
         }
@@ -299,16 +308,18 @@ public class APU {
     public void clock() {
         // This clock is the CPU clock (approx 1.79MHz)
 
+        apuHalfClockToggle = !apuHalfClockToggle; // Toggles each CPU cycle
+
         // Clock the Frame Counter first, as it might trigger other clocks
         clockFrameCounter();
 
-        // Channels are clocked by the APU's internal ~894kHz clock (CPU_clock / 2)
-        // However, the PulseChannel's internal timer is clocked every APU cycle (which is every 2 CPU cycles).
-        // For now, let's call pulse1.clock() directly on every CPU clock for simplicity,
-        // and its internal timer logic will handle the actual frequency.
-        // More precise APU clocking (dividing CPU clock by 2 for some components) can be added later.
-        pulse1.clock();
-        pulse2.clock();
+        // Pulse channels are clocked effectively at CPU_clock / 2.
+        // Their clock() method is now called when apuHalfClockToggle is true.
+        if (apuHalfClockToggle) {
+            pulse1.clock();
+            pulse2.clock();
+        }
+
         triangle.clock(); // Triangle timer is clocked at CPU rate
         noise.clock();    // Noise timer is clocked at CPU rate
 
@@ -320,7 +331,7 @@ public class APU {
             dmc.clearPendingStallRequestAndSetNeedsFetch();
             // DMC will fetch on its dmc.clock() call now
         }
-        dmc.clock();      // DMC timer is clocked at CPU rate
+        dmc.clock();      // DMC timer is clocked at CPU rate (actual sample rate based on its period)
 
         // Check for DMC IRQ
 
