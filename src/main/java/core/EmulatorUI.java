@@ -191,10 +191,19 @@ public class EmulatorUI extends JFrame {
                 render(bufferStrategy);
                 lastTime = now;
             } else {
-                try {
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                // We are ahead of schedule. Sleep for the remainder of the nsPerFrame duration.
+                long elapsedNanos = now - lastTime;
+                long timeToWaitNanos = (long) nsPerFrame - elapsedNanos;
+
+                if (timeToWaitNanos > 0) {
+                    long millisToWait = timeToWaitNanos / 1_000_000;
+                    int nanosToWait = (int) (timeToWaitNanos % 1_000_000);
+                    try {
+                        Thread.sleep(millisToWait, nanosToWait);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        isRunning = false; // Stop the loop if interrupted
+                    }
                 }
             }
         }

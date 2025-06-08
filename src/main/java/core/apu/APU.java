@@ -296,8 +296,15 @@ public class APU {
         int sourceState = alGetSourcei(alSource, AL_SOURCE_STATE);
         if (sourceState != AL_PLAYING) {
             int queued = alGetSourcei(alSource, AL_BUFFERS_QUEUED);
-            if (queued >= NUM_BUFFERS / 2 || sourceState == AL_STOPPED) {
+            // Require more buffers to be queued before starting, to build a larger safety margin
+            // For NUM_BUFFERS = 4, this means we wait for at least 3 buffers.
+            // If the source is AL_STOPPED, we'll play if at least one buffer is queued (which it will be after alSourceQueueBuffers).
+            if (queued >= (NUM_BUFFERS * 3 / 4) || (sourceState == AL_STOPPED && queued > 0)) {
                 alSourcePlay(alSource);
+                int playError = alGetError(); // Store error code
+                if (playError != AL_NO_ERROR) {
+                    System.err.println("APU: Error starting OpenAL source playback. AL Error: " + playError);
+                }
             }
         }
 
@@ -307,14 +314,38 @@ public class APU {
 
     private void unqueueProcessedBuffers() {
         int processed = alGetSourcei(alSource, AL_BUFFERS_PROCESSED);
+        int getProcessedError = alGetError(); // Check error from alGetSourcei itself
+        if (getProcessedError != AL_NO_ERROR) {
+            System.err.println("APU: Error getting AL_BUFFERS_PROCESSED. AL Error: " + getProcessedError);
+            return;
+        }
+
         for (int i = 0; i < processed; i++) {
             int bufferId = alSourceUnqueueBuffers(alSource);
-            // Check for error after unqueueing
-            if (alGetError() == AL_NO_ERROR) {
-                 availableBuffers.add(bufferId);
-            } else {
-                System.err.println("APU: Error unqueueing OpenAL buffer.");
-                // Potentially try to regenerate this buffer or handle error
+            // It's crucial to check for AL_NONE which alSourceUnqueueBuffers might return
+            // if no buffer was available to unqueue, despite 'processed' suggesting otherwise.
+            if (bufferId == AL_NONE) { // AL_NONE is part of AL10, typically 0
+                int errorAfterNone = alGetError(); // Check if AL_NONE was due to an error
+                if (errorAfterNone != AL_NO_ERROR) {
+                    System.err.println("APU: alSourceUnqueueBuffers returned AL_NONE with error: " + errorAfterNone);
+                } else {
+                    System.err.println("APU: alSourceUnqueueBuffers returned AL_NONE unexpectedly (processed indicated " + processed + " buffers).");
+                }
+                // If AL_NONE is returned, there's no valid bufferId to add back.
+                continue;
+            }
+
+            // If bufferId is not AL_NONE, it means a buffer was successfully unqueued from the source.
+            // This buffer MUST be added back to our available list or explicitly deleted.
+            availableBuffers.add(bufferId);
+
+            int unqueueError = alGetError(); // Check for errors specifically from the alSourceUnqueueBuffers call for this bufferId.
+            if (unqueueError != AL_NO_ERROR) {
+                System.err.println("APU: Error during alSourceUnqueueBuffers for buffer " + bufferId + ". AL Error: " + unqueueError);
+                // The buffer is already back in availableBuffers.
+                // If this error indicates the buffer is corrupt, one might consider
+                // removing it from availableBuffers here, calling alDeleteBuffers(bufferId),
+                // and possibly creating a new buffer to replace it.
             }
         }
     }
