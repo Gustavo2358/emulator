@@ -123,10 +123,14 @@ public class TriangleChannel {
     }
 
     public void clock() {
-        // 1. Always decrement the internal timer (timerValue) each CPU cycle.
-        this.timerValue--;
+        // Corrected logic: Check timer, then decrement if > 0, then reload if 0.
+        // This matches the behavior described: "timerValue decrements, and when it hits zero, it reloads"
+        // and ensures that if timerValue is 0, it reloads before attempting to decrement to -1.
 
-        // 2. When timerValue hits zero, reload it with timerPeriod+1 (internalTimerPeriod).
+        if (timerValue > 0) {
+            timerValue--;
+        }
+
         if (this.timerValue == 0) {
             this.timerValue = this.internalTimerPeriod; // internalTimerPeriod is already period+1
 
@@ -148,7 +152,6 @@ public class TriangleChannel {
         // and is not otherwise updated, it will decrement to -1. The `if (this.timerValue == 0)`
         // condition will then not be met, and the timer might stall or behave incorrectly
         // until it wraps around or is explicitly reset by other code.
-        // This specific subtask is scoped only to changing the clock() method as per instructions.
     }
 
     public byte getSample() {

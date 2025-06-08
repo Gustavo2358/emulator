@@ -152,6 +152,21 @@ public class APU {
                 value & 0xFF,
                 (value & 0x80) != 0 ? "5-step" : "4-step",
                 (value & 0x40) != 0);
+            this.sequenceMode = (value & 0x80) != 0; // Bit 7: 0 for 4-step, 1 for 5-step
+            this.irqInhibitFlag = (value & 0x40) != 0; // Bit 6: 0 for IRQ enabled, 1 for IRQ disabled
+
+            this.frameSequenceCounter = 0; // Writing to $4017 resets the frame counter and its step.
+            this.frameStep = 0;
+            if (this.irqInhibitFlag) {
+                this.frameInterruptFlag = false; // Clear pending frame interrupt if inhibited
+            }
+
+            // If 5-step mode, clock all units immediately (half and quarter frame)
+            // This is a side effect of $4017 write if mode is 5-step.
+            if (this.sequenceMode) {
+                clockQuarterFrameUnits();
+                clockHalfFrameUnits();
+            }
         }
 
         if (address >= 0x4000 && address <= 0x4003) { // Pulse 1 registers
@@ -175,23 +190,6 @@ public class APU {
             }
             // Writing to $4015 also clears DMC IRQ if DMC is disabled.
             // Frame interrupt flag is not affected by $4015 writes directly, only by $4017 or reading $4015.
-        } else if (address == 0x4017) { // Frame Counter Control
-            // System.out.println("Write to Frame Counter ($4017): " + String.format("0x%02X", value));
-            this.sequenceMode = (value & 0x80) != 0; // Bit 7: 0 for 4-step, 1 for 5-step
-            this.irqInhibitFlag = (value & 0x40) != 0; // Bit 6: 0 for IRQ enabled, 1 for IRQ disabled
-
-            this.frameSequenceCounter = 0; // Writing to $4017 resets the frame counter and its step.
-            this.frameStep = 0;
-            if (this.irqInhibitFlag) {
-                this.frameInterruptFlag = false; // Clear pending frame interrupt if inhibited
-            }
-
-            // If 5-step mode, clock all units immediately (half and quarter frame)
-            // This is a side effect of $4017 write if mode is 5-step.
-            if (this.sequenceMode) {
-                clockQuarterFrameUnits();
-                clockHalfFrameUnits();
-            }
         } else {
             // System.out.println("Unhandled APU register write: " + String.format("0x%04X", address));
         }
@@ -272,12 +270,8 @@ public class APU {
                 clockHalfFrameUnits();
                 if (!irqInhibitFlag) {
                     frameInterruptFlag = true;
-                    // Signal actual IRQ to CPU if frameInterruptFlag is set
-                    if (this.bus != null && this.bus.getCpu() != null) {
-                        this.bus.getCpu().assertIRQLine();
-                    }
                 }
-                frameSequenceCounter = 0;
+                frameSequenceCounter = 0; // Reset the counter
             }
         } else { // 5-step sequence
             if (frameSequenceCounter == NTSC_FRAME_COUNTER_SEQUENCE_5_STEP[0]) { // ~7457
@@ -321,7 +315,7 @@ public class APU {
         // Handle DMC stall request before clocking DMC
         if (dmc.hasPendingStallRequest()) {
             if (bus != null && bus.getCpu() != null) { // Ensure bus and cpu are available
-                bus.getCpu().stallForDMA(3); // Stall CPU for 3 cycles (placeholder)
+                bus.getCpu().stallForDMA(4); // Stall CPU for 4 cycles
             }
             dmc.clearPendingStallRequestAndSetNeedsFetch();
             // DMC will fetch on its dmc.clock() call now

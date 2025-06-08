@@ -149,12 +149,23 @@ public class CPU {
     }
 
     public void runCycle() {
+        // Clock the APU at the beginning of each CPU cycle
+        if (apu != null) {
+            apu.clock();
+            // After APU clock, check for APU triggered IRQs and assert/de-assert CPU's IRQ line
+            boolean apuWantsIRQ = apu.isDmcIrqAsserted() || apu.isFrameIrqAsserted();
+            if (apuWantsIRQ) {
+                assertIRQLine();
+            } else {
+                // If the APU is the only source controlling the IRQ line via this mechanism,
+                // or if no other source is currently asserting IRQ.
+                deassertIRQLine(); // Sets this.irqLineAsserted = false;
+            }
+        }
+
         if (dmaStallCycles > 0) {
             dmaStallCycles--;
-            // APU and PPU clocking should continue during DMA stall
-            if (apu != null) {
-                apu.clock();
-            }
+            // PPU clocking should continue during DMA stall
             // Assuming PPU clocking is handled elsewhere or also needs to be added here if not.
             return;
         }
@@ -183,20 +194,6 @@ public class CPU {
             executeInstruction();
         }
         remainingCycles--;
-
-        // Clock the APU after each CPU cycle
-        if (apu != null) {
-            apu.clock();
-            // After APU clock, check for APU triggered IRQs and assert/de-assert CPU's IRQ line
-            boolean apuWantsIRQ = apu.isDmcIrqAsserted() || apu.isFrameIrqAsserted();
-            if (apuWantsIRQ) {
-                assertIRQLine();
-            } else {
-                // If the APU is the only source controlling the IRQ line via this mechanism,
-                // or if no other source is currently asserting IRQ.
-                deassertIRQLine(); // Sets this.irqLineAsserted = false;
-            }
-        }
     }
 
     private boolean isOpCode() {
