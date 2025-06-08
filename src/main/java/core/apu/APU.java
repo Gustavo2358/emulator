@@ -266,10 +266,13 @@ public class APU {
         apuCycleAccumulator++;
         if (apuCycleAccumulator >= CPU_CYCLES_PER_AUDIO_SAMPLE) {
             apuCycleAccumulator -= CPU_CYCLES_PER_AUDIO_SAMPLE;
-            byte mixedSample = generateSampleInternal();
 
-            audioBuffer.put(mixedSample);
-            samplesInCurrentBuffer++;
+            // Check if there is space in the buffer before generating and adding a new sample.
+            if (samplesInCurrentBuffer < BUFFER_SIZE_SAMPLES) {
+                byte mixedSample = generateSampleInternal();
+                audioBuffer.put(mixedSample);
+                samplesInCurrentBuffer++;
+            }
 
             if (samplesInCurrentBuffer == BUFFER_SIZE_SAMPLES) {
                 flushAudioBuffer();
@@ -288,8 +291,14 @@ public class APU {
         alBufferData(bufferId, AL_FORMAT_MONO8, audioBuffer, (int) SAMPLE_RATE);
         alSourceQueueBuffers(alSource, bufferId);
 
-        if (alGetSourcei(alSource, AL_SOURCE_STATE) != AL_PLAYING) {
-            alSourcePlay(alSource);
+        // Only start playing if the source is not already playing,
+        // and we have a few buffers queued up to prevent initial underrun.
+        int sourceState = alGetSourcei(alSource, AL_SOURCE_STATE);
+        if (sourceState != AL_PLAYING) {
+            int queued = alGetSourcei(alSource, AL_BUFFERS_QUEUED);
+            if (queued >= NUM_BUFFERS / 2 || sourceState == AL_STOPPED) {
+                alSourcePlay(alSource);
+            }
         }
 
         audioBuffer.clear();
