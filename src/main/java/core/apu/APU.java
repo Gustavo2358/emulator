@@ -35,6 +35,7 @@ public class APU {
     private boolean sequenceMode;     // 0 for 4-step, 1 for 5-step
     private boolean irqInhibitFlag;   // True if frame IRQ is disabled
     private boolean frameInterruptFlag; // True if frame interrupt has occurred
+    private core.CPU cpu; // Reference to CPU for IRQ
 
     // NTSC CPU cycles for frame counter events (approximate)
     // Derived from 240Hz clocking. CPU runs at 1789773 Hz.
@@ -52,15 +53,14 @@ public class APU {
     private static final int NTSC_FRAME_COUNTER_PERIOD_5_STEP = 37282; // Total cycles for 5-step sequence
 
     // Constructor
-    public APU(CPUBus bus) { // Added CPUBus parameter
-        this.bus = bus;
+    public APU() { // Constructor no longer takes CPUBus
         // Initialize channel objects
         this.pulse1 = new PulseChannel();
         this.pulse1.setIsPulse1(true); // Designate this as Pulse 1 for sweep quirk
         this.pulse2 = new PulseChannel();
         this.triangle = new TriangleChannel();
         this.noise = new NoiseChannel();
-        this.dmc = new DMCChannel(this.bus); // Instantiate DMCChannel with bus reference
+        this.dmc = new DMCChannel(); // Instantiate DMCChannel without bus reference initially
 
         try {
             AudioFormat audioFormat = new AudioFormat(SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS, SIGNED, BIG_ENDIAN);
@@ -104,6 +104,17 @@ public class APU {
         this.sequenceMode = false; // Default to 4-step
         this.irqInhibitFlag = true; // Default to IRQ inhibited
         this.frameInterruptFlag = false;
+    }
+
+    public void setBus(CPUBus bus) { // Added setBus method
+        this.bus = bus;
+        if (this.dmc != null) {
+            this.dmc.setBus(bus); // Pass bus to DMCChannel
+        }
+    }
+
+    public void setCpu(core.CPU cpu) { // Added setCpu method
+        this.cpu = cpu;
     }
 
     // Placeholder methods for memory-mapped register access

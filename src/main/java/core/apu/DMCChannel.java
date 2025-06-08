@@ -36,8 +36,7 @@ public class DMCChannel {
     };
     // PAL has a different table
 
-    public DMCChannel(CPUBus bus) {
-        this.bus = bus;
+    public DMCChannel() { // Constructor no longer takes CPUBus
         this.irqEnabled = false;
         this.loopFlag = false;
         this.rateIndex = 0;
@@ -50,6 +49,10 @@ public class DMCChannel {
         this.bytesRemaining = 0;
         this.timerValue = NTSC_DMC_PERIOD_TABLE[0];
         this.irqPending = false;
+    }
+
+    public void setBus(CPUBus bus) { // Added setBus method
+        this.bus = bus;
     }
 
     public void writeRegister(int register, byte value) {
@@ -93,7 +96,7 @@ public class DMCChannel {
     public void clock() {
         if (needsToFetchByte) {
             // This part is executed after APU has stalled CPU and called clearPendingStallRequestAndSetNeedsFetch()
-            if (bytesRemaining > 0) { // Should always be true if needsToFetchByte is true
+            if (bytesRemaining > 0 && bus != null) { // Added null check for bus
                 sampleBuffer = (byte) bus.read(currentAddress);
                 currentAddress++; // Simple increment, relies on mapper for $C000-$FFFF range
                                   // If currentAddress wraps 0xFFFF->0x0000, it reads from new address via bus.

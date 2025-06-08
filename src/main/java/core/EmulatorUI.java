@@ -21,20 +21,12 @@ public class EmulatorUI extends JFrame {
     private final Controller controller;
 
     private boolean isRunning = false;
-    // audioCycleAccumulator, NES_CPU_SPEED, and CYCLES_PER_SAMPLE are no longer needed here.
 
-    public EmulatorUI(CPU cpu, PPU ppu) {
+    public EmulatorUI(CPU cpu, PPU ppu, core.apu.APU apu) { // Added APU to constructor
         this.cpu = cpu;
         this.ppu = ppu;
+        this.apu = apu; // Store APU instance
         this.controller = new Controller();
-        // Assuming CPU has getBus() and CPUBus has getAPU()
-        if (cpu.getBus() instanceof CPUBus) {
-            this.apu = ((CPUBus) cpu.getBus()).getAPU();
-        } else {
-            // Handle case where bus is not CPUBus or APU is not available
-            System.err.println("Could not retrieve APU instance from CPUBus. Audio will be disabled.");
-            this.apu = null; // Or a NullAPU object
-        }
 
         setTitle("NES Emulator");
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Handle close manually
@@ -172,7 +164,6 @@ public class EmulatorUI extends JFrame {
     }
 
     private void renderLoop() {
-        // audioCycleAccumulator = 0; // No longer needed
         canvas.createBufferStrategy(2);
         BufferStrategy bufferStrategy = canvas.getBufferStrategy();
 
@@ -190,9 +181,6 @@ public class EmulatorUI extends JFrame {
                 cyclesThisFrame = 0;
                 while (cyclesThisFrame < cpuCyclesPerFrame) {
                     cpu.runCycle(); // CPU cycle now also clocks the APU internally
-
-                    // APU sample generation and playback is handled by APU.clock() called within cpu.runCycle()
-                    // No direct APU calls needed here anymore for sample generation.
 
                     ppu.runCycle(); // PPU runs 3x CPU speed
                     ppu.runCycle();

@@ -192,11 +192,9 @@ public class CPU {
             if (apuWantsIRQ) {
                 assertIRQLine();
             } else {
-                // This de-assertion might be too aggressive if other devices can assert IRQ.
-                // A more robust system might have multiple sources for IRQ line.
-                // For now, if APU is the only IRQ source, this is okay.
-                // deassertIRQLine(); // Or, IRQ line stays asserted until explicitly cleared by CPU after handling.
-                // Let's assume IRQ line stays asserted until explicitly cleared by CPU after handling or by device.
+                // If the APU is the only source controlling the IRQ line via this mechanism,
+                // or if no other source is currently asserting IRQ.
+                deassertIRQLine(); // Sets this.irqLineAsserted = false;
             }
         }
     }

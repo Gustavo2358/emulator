@@ -29,6 +29,7 @@ public class TriangleChannel {
     private int lengthCounter;            // Current value of the length counter
     private int sequencePosition;         // Current step in the 32-step sequence (0-31)
     private boolean linearCounterReloadFlag; // Set when $4008 is written, cleared when linear counter is clocked with controlFlag clear
+    private boolean isEnabled;              // Tracks channel enable status from APU ($4015)
 
     // Triangle wave sequence (32 steps)
     // 0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F, F,E,D,C,B,A,9,8,7,6,5,4,3,2,1,0
@@ -50,6 +51,7 @@ public class TriangleChannel {
         this.lengthCounter = 0;
         this.sequencePosition = 0;
         this.linearCounterReloadFlag = false;
+        this.isEnabled = false; // Initialize channel as disabled
     }
 
     public void writeRegister(int register, byte value) {
@@ -71,7 +73,8 @@ public class TriangleChannel {
                 this.timerHigh = value & 0x07;
                 this.lengthCounterLoad = (value >> 3) & 0x1F; // Bits 3-7
                 updateTimerPeriod();
-                if (!controlFlag) { // If length counter is not halted (i.e. active)
+                // Length counter is reloaded if channel is enabled (via $4015)
+                if (this.isEnabled) {
                     this.lengthCounter = LengthCounterTable.LENGTH_TABLE[this.lengthCounterLoad];
                 }
                 this.linearCounterReloadFlag = true; // Linear counter to be reloaded
@@ -183,29 +186,20 @@ public class TriangleChannel {
     }
 
     public void setEnabled(boolean enabled) {
+        this.isEnabled = enabled;
         if (!enabled) {
             this.lengthCounter = 0;
         } else {
-            // If the channel is being enabled, and its lengthCounter was previously 0 (e.g. from being disabled),
-            // it should be reloaded. The actual length value to load comes from the 'lengthCounterLoad'
-            // field, which is an index into the LENGTH_TABLE. This field is set by writes to $400B.
-            // This behavior aligns with many emulators where enabling a channel makes it
-            // "active" with its currently programmed length, rather than waiting for another $400B write.
-            // Check if lengthCounterLoad is within the bounds of LENGTH_TABLE.
-            // The lengthCounterLoad is a 5-bit value, so its max index is 31 (0x1F).
-            // LENGTH_TABLE has 32 entries (0-31).
+            // When channel is enabled, its length counter is reloaded with the current lengthCounterLoad value.
+            // Ensure lengthCounterLoad is a valid index for LENGTH_TABLE.
             if (this.lengthCounterLoad >= 0 && this.lengthCounterLoad < LengthCounterTable.LENGTH_TABLE.length) {
-                 // Only reload if the channel was effectively off (lengthCounter == 0).
-                 // Some interpretations suggest that enabling always reloads it.
-                 // For now, let's assume it reloads if it's currently 0.
-                 // A more direct interpretation of "reloads its length counter" is to always do it on setEnabled(true).
                 this.lengthCounter = LengthCounterTable.LENGTH_TABLE[this.lengthCounterLoad];
             }
-            // Note: The linear counter is not directly reloaded by setEnabled.
-            // It's controlled by the linearCounterReloadFlag, which is set by a write to $400B
-            // and actioned by clockLinearCounter. Enabling the channel allows the linear counter
-            // to start decrementing if it's > 0 and the controlFlag isn't halting it.
         }
+    }
+
+    public boolean isEnabled() {
+        return this.isEnabled;
     }
 
     public boolean isLengthCounterActive() {
