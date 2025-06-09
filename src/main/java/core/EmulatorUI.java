@@ -17,17 +17,26 @@ public class EmulatorUI extends JFrame {
     private final Canvas canvas;
     private final PPU ppu;
     private final CPU cpu;
+    private final core.apu.APU apu; // Updated to specific package
     private final Controller controller;
 
     private boolean isRunning = false;
 
-    public EmulatorUI(CPU cpu, PPU ppu) {
+    public EmulatorUI(CPU cpu, PPU ppu, core.apu.APU apu) { // Added APU to constructor
         this.cpu = cpu;
         this.ppu = ppu;
+        this.apu = apu; // Store APU instance
         this.controller = new Controller();
 
         setTitle("NES Emulator");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Handle close manually
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                stop(); // Call our stop method which should include apu.stopAudio()
+                System.exit(0);
+            }
+        });
         setResizable(false);
 
         canvas = new Canvas();
@@ -149,41 +158,71 @@ public class EmulatorUI extends JFrame {
 
     public void stop() {
         isRunning = false;
+        if (apu != null) {
+            apu.stopAudio();
+        }
     }
 
     private void renderLoop() {
         canvas.createBufferStrategy(2);
         BufferStrategy bufferStrategy = canvas.getBufferStrategy();
 
-        long lastTime = System.nanoTime();
-        double nsPerFrame = 1_000_000_000.0 / 60.0; // 60 FPS
+        long wallClock_lastTime = System.nanoTime(); // Tracks wall-clock time for the accumulator
+        final double nsPerFrame = 1_000_000_000.0 / 60.0; // Target duration of one NES frame (for emulation and visuals)
+        double accumulatorNs = 0.0; // Accumulates unprocessed real time
 
-        final int cpuCyclesPerFrame = 29833;
-        int cyclesThisFrame = 0;
+        final int cpuCyclesPerFrame = 29833; // Defined CPU cycles per NES frame
 
         while (isRunning) {
-            long now = System.nanoTime();
-            double delta = (now - lastTime) / nsPerFrame;
+            long wallClock_currentTime = System.nanoTime(); // Current wall-clock time at the start of this iteration
+            double elapsedRealNs = (double)(wallClock_currentTime - wallClock_lastTime);
+            wallClock_lastTime = wallClock_currentTime;
 
-            if (delta >= 1.0) {
-                cyclesThisFrame = 0;
-                while (cyclesThisFrame < cpuCyclesPerFrame) {
-                    cpu.runCycle();
+            // Cap elapsedRealNs to prevent spiral of death if system hangs for too long.
+            // e.g., cap at 4 frames worth of time (approx 66.67ms for 60FPS).
+            final double maxElapsedTimeNs = 4.0 * nsPerFrame;
+            if (elapsedRealNs > maxElapsedTimeNs) {
+                elapsedRealNs = maxElapsedTimeNs;
+            }
+
+            accumulatorNs += elapsedRealNs;
+
+            // Emulate NES frames if enough accumulated time
+            while (accumulatorNs >= nsPerFrame) {
+                int cyclesThisEmulationStep = 0;
+                while (cyclesThisEmulationStep < cpuCyclesPerFrame) {
+                    cpu.runCycle(); // CPU cycle now also clocks the APU internally
+                    ppu.runCycle(); // PPU runs 3x CPU speed
                     ppu.runCycle();
                     ppu.runCycle();
-                    ppu.runCycle();
-                    cyclesThisFrame++;
+                    cyclesThisEmulationStep++;
                 }
+                accumulatorNs -= nsPerFrame;
+            }
 
-                render(bufferStrategy);
-                lastTime = now;
-            } else {
-                try {
-                    Thread.sleep(1);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+            // Render the current state once per visual frame iteration
+            render(bufferStrategy);
+
+            // Sleep logic to maintain overall visual frame rate and avoid busy-waiting
+            long visualFrameProcessingEndTime = System.nanoTime();
+            // wallClock_currentTime was the time at the START of this visual frame's processing (emulation + render)
+            long iterationActualDurationNs = visualFrameProcessingEndTime - wallClock_currentTime;
+
+            if (iterationActualDurationNs < nsPerFrame) {
+                long timeToWaitNanos = (long)nsPerFrame - iterationActualDurationNs;
+                if (timeToWaitNanos > 0) {
+                    long millisToWait = timeToWaitNanos / 1_000_000;
+                    int nanosToWait = (int) (timeToWaitNanos % 1_000_000);
+                    try {
+                        Thread.sleep(millisToWait, nanosToWait);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        isRunning = false; // Stop the loop if interrupted
+                    }
                 }
             }
+            // If iterationActualDurationNs >= nsPerFrame, we are on time or lagging behind visually,
+            // so no sleep is performed. The accumulator handles emulation catch-up.
         }
 
         bufferStrategy.dispose();

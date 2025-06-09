@@ -1,4 +1,5 @@
 import core.*;
+import core.apu.APU; // Import APU
 import ppu.PPUImpl;
 
 import javax.swing.*;
@@ -18,9 +19,16 @@ public class Main {
 
         Cartridge cartridge = Cartridge.fromNesFile(romData);
         WRAMImpl wram = new WRAMImpl();
-        PPUImpl ppu = new PPUImpl(cartridge); // Pass cartridge to PPU constructor
-        CPUBus bus = new CPUBus(wram, cartridge, ppu);
+        PPUImpl ppu = new PPUImpl(cartridge);
+        APU apu = new APU(); // Create APU instance first
+        CPUBus bus = new CPUBus(wram, cartridge, ppu, apu); // Pass APU to CPUBus
+        apu.setBus(bus); // Give APU the bus reference (for DMC)
         CPU cpu = new CPU(bus);
+        bus.setCpu(cpu); // Set the CPU instance in the bus
+
+        if (apu != null) {
+            apu.setCpu(cpu); // Give APU a reference to CPU
+        }
 
         ppu.setCpu(cpu); // Set core.CPU instance in PPU for NMI
         ppu.setCpuBus(bus); // Ensure PPUImpl gets a reference to CPUBus
@@ -28,7 +36,7 @@ public class Main {
         cpu.fetchProgramCounter();
 
         SwingUtilities.invokeLater(() -> {
-            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu);
+            EmulatorUI emulatorUI = new EmulatorUI(cpu, ppu, apu); // Use the 'apu' instance directly
             emulatorUI.setVisible(true);
             emulatorUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 

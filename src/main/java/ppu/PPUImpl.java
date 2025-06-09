@@ -419,8 +419,7 @@ public class PPUImpl implements PPU {
                         if ((ppuMask & 0x18) != 0) {
                             vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
                         }
-                    }
-                    if (cycle == 257) {
+
                         for (int i = 0; i < 8; i++) {
                             spriteX[i] = 0xFF;
                             spriteY[i] = 0xFF;
@@ -472,94 +471,8 @@ public class PPUImpl implements PPU {
                         }
                     }
 
-                    if (cycle >= 1 && cycle <= 256 && scanline >= 0 && scanline < 240) {
-                        int bgPixel = 0;
-                        int bgPalette = 0;
-
-                        if ((ppuMask & 0x08) != 0) {
-                            if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
-                                int bitMux = 0x8000 >> fineX;
-
-                                int p0 = (bgShifterPatternLow & bitMux) > 0 ? 1 : 0;
-                                int p1 = (bgShifterPatternHigh & bitMux) > 0 ? 1 : 0;
-                                bgPixel = p0 | (p1 << 1);
-
-                                int pal0 = (bgShifterAttributeLow & bitMux) > 0 ? 1 : 0;
-                                int pal1 = (bgShifterAttributeHigh & bitMux) > 0 ? 1 : 0;
-                                bgPalette = pal0 | (pal1 << 1);
-                            }
-                        }
-
-                        int fpixel = 0;
-                        int fpalette = 0;
-                        int fpriority = 0;
-
-                        if ((ppuMask & 0x10) != 0) {
-                            if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
-                                for (int i = 0; i < spriteCount; i++) {
-                                    if (spriteX[i] == 0) {
-                                        int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
-                                        fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
-                                        fpalette = (spriteAttribute[i] & 0x03) + 4;
-                                        fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0; // 1 if sprite behind BG, 0 if in front
-
-                                        if (fp != 0) { // If sprite pixel is not transparent
-                                            fpixel = fp; // Assign the calculated sprite pixel to fpixel
-                                            if (i == 0 && bgPixel != 0 && cycle != 256) { // Sprite 0 hit detection
-                                                ppuStatus |= 0x40;
-                                            }
-                                            break; // Found first opaque sprite pixel for this X
-                                        }
-                                    }
-                                }
-
-                                for (int i = 0; i < spriteCount; i++) {
-                                    if (spriteX[i] > 0) {
-                                        spriteX[i]--;
-                                    } else {
-                                        spriteDataLow[i] <<= 1;
-                                        spriteDataHigh[i] <<= 1;
-                                    }
-                                }
-                            }
-                        }
-
-                        int pixel;
-                        int palette;
-
-                        boolean bgIsTransparent = (bgPixel == 0);
-                        boolean spriteIsTransparent = (fpixel == 0);
-
-                        if (bgIsTransparent && spriteIsTransparent) {
-                            // Both background and sprite are transparent
-                            pixel = 0;
-                            palette = 0;
-                        } else if (bgIsTransparent && !spriteIsTransparent) {
-                            // Background is transparent, sprite is visible
-                            pixel = fpixel;
-                            palette = fpalette;
-                        } else if (!bgIsTransparent && spriteIsTransparent) {
-                            // Background is visible, sprite is transparent
-                            pixel = bgPixel;
-                            palette = bgPalette;
-                        } else {
-                            // Both background and sprite are visible, apply priority
-                            if (fpriority == 1) { // Sprite priority bit 5 is set (1 means behind background)
-                                pixel = bgPixel;
-                                palette = bgPalette;
-                            } else { // Sprite priority bit 5 is clear (0 means in front of background)
-                                pixel = fpixel;
-                                palette = fpalette;
-                            }
-                        }
-
-                        int colorAddr = 0x3F00 | (palette << 2) | pixel;
-                        int colorIndex = ppuRead(colorAddr) & 0x3F;
-
-                        int pixelIndex = (scanline * 256) + (cycle - 1);
-                        if (pixelIndex >= 0 && pixelIndex < frameData.length) {
-                            frameData[pixelIndex] = PALETTE[colorIndex];
-                        }
+                    if (cycle >= 1 && cycle <= 256 && scanline >= 0) {
+                        renderPixelForCurrentPosition();
                     }
                 }
             }
@@ -594,6 +507,96 @@ public class PPUImpl implements PPU {
             nmiPrevious = true;
         } else if (!nmi && nmiPrevious) {
             nmiPrevious = false;
+        }
+    }
+
+    private void renderPixelForCurrentPosition() {
+        int bgPixel = 0;
+        int bgPalette = 0;
+
+        if ((ppuMask & 0x08) != 0) {
+            if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
+                int bitMux = 0x8000 >> fineX;
+
+                int p0 = (bgShifterPatternLow & bitMux) > 0 ? 1 : 0;
+                int p1 = (bgShifterPatternHigh & bitMux) > 0 ? 1 : 0;
+                bgPixel = p0 | (p1 << 1);
+
+                int pal0 = (bgShifterAttributeLow & bitMux) > 0 ? 1 : 0;
+                int pal1 = (bgShifterAttributeHigh & bitMux) > 0 ? 1 : 0;
+                bgPalette = pal0 | (pal1 << 1);
+            }
+        }
+
+        int fpixel = 0;
+        int fpalette = 0;
+        int fpriority = 0;
+
+        if ((ppuMask & 0x10) != 0) {
+            if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
+                for (int i = 0; i < spriteCount; i++) {
+                    if (spriteX[i] == 0) {
+                        int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
+                        fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
+                        fpalette = (spriteAttribute[i] & 0x03) + 4;
+                        fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0; // 1 if sprite behind BG, 0 if in front
+
+                        if (fp != 0) { // If sprite pixel is not transparent
+                            fpixel = fp; // Assign the calculated sprite pixel to fpixel
+                            if (i == 0 && bgPixel != 0 && cycle != 256) { // Sprite 0 hit detection
+                                ppuStatus |= 0x40;
+                            }
+                            break; // Found first opaque sprite pixel for this X
+                        }
+                    }
+                }
+
+                for (int i = 0; i < spriteCount; i++) {
+                    if (spriteX[i] > 0) {
+                        spriteX[i]--;
+                    } else {
+                        spriteDataLow[i] <<= 1;
+                        spriteDataHigh[i] <<= 1;
+                    }
+                }
+            }
+        }
+
+        int pixel;
+        int palette;
+
+        boolean bgIsTransparent = (bgPixel == 0);
+        boolean spriteIsTransparent = (fpixel == 0);
+
+        if (bgIsTransparent && spriteIsTransparent) {
+            // Both background and sprite are transparent
+            pixel = 0;
+            palette = 0;
+        } else if (bgIsTransparent && !spriteIsTransparent) {
+            // Background is transparent, sprite is visible
+            pixel = fpixel;
+            palette = fpalette;
+        } else if (!bgIsTransparent && spriteIsTransparent) {
+            // Background is visible, sprite is transparent
+            pixel = bgPixel;
+            palette = bgPalette;
+        } else {
+            // Both background and sprite are visible, apply priority
+            if (fpriority == 1) { // Sprite priority bit 5 is set (1 means behind background)
+                pixel = bgPixel;
+                palette = bgPalette;
+            } else { // Sprite priority bit 5 is clear (0 means in front of background)
+                pixel = fpixel;
+                palette = fpalette;
+            }
+        }
+
+        int colorAddr = 0x3F00 | (palette << 2) | pixel;
+        int colorIndex = ppuRead(colorAddr) & 0x3F;
+
+        int pixelIndex = (scanline * 256) + (cycle - 1);
+        if (pixelIndex >= 0 && pixelIndex < frameData.length) {
+            frameData[pixelIndex] = PALETTE[colorIndex];
         }
     }
 
