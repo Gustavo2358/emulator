@@ -359,16 +359,20 @@ public class PPUImpl implements PPU {
 
         if (scanline < 240) {
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
-                updateShifters();
+                if (isBackgroundRenderingEnabled()) {
+                    updateShifters();
+                }
                 performBackgroundFetches();
             }
 
             if (cycle == 256) {
-                incrementY();
+                if (isBackgroundRenderingEnabled()) {
+                    incrementY();
+                }
             }
             if (cycle == 257) {
                 copyHorizontalScrollBitsFromTRam();
-                evaluateSprintesForNextScanline();
+                evaluateSpritesForNextScanline();
             }
 
             if (cycle >= 1 && cycle <= 256 && scanline >= 0) {
@@ -462,7 +466,7 @@ public class PPUImpl implements PPU {
      * Scans the primary OAM memory to find which sprites are visible on the next scanline,
      * populates the secondary OAM with their data, and fetches the corresponding tile pattern data.
      */
-    private void evaluateSprintesForNextScanline() {
+    private void evaluateSpritesForNextScanline() {
         for (int i = 0; i < 8; i++) {
             spriteX[i] = 0xFF;
             spriteY[i] = 0xFF;
@@ -528,7 +532,7 @@ public class PPUImpl implements PPU {
         int bgPixel = 0;
         int bgPalette = 0;
 
-        if ((ppuMask & 0x08) != 0) {
+        if (isBackgroundRenderingEnabled()) {
             if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
                 int bitMux = 0x8000 >> fineX;
 
@@ -615,12 +619,18 @@ public class PPUImpl implements PPU {
     }
 
     private void updateShifters() {
-        if ((ppuMask & 0x08) != 0) {
             bgShifterPatternLow <<= 1;
             bgShifterPatternHigh <<= 1;
             bgShifterAttributeLow <<= 1;
             bgShifterAttributeHigh <<= 1;
-        }
+    }
+
+    private boolean isBackgroundRenderingEnabled() {
+        return (ppuMask & 0x08) != 0;
+    }
+
+    private boolean isBackgroundRenderingDisabled() {
+        return (ppuMask & 0x08) == 0;
     }
 
     private void loadBackgroundShifters() {
@@ -632,7 +642,7 @@ public class PPUImpl implements PPU {
     }
 
     private void incrementX() {
-        if ((ppuMask & 0x08) == 0) {
+        if (isBackgroundRenderingDisabled()) {
             return;
         }
         if ((vRamAddr & 0x001F) == 31) {
@@ -644,9 +654,6 @@ public class PPUImpl implements PPU {
     }
 
     private void incrementY() {
-        if ((ppuMask & 0x08) == 0) {
-            return;
-        }
         if ((vRamAddr & 0x7000) != 0x7000) {
             vRamAddr += 0x1000;
         } else {
