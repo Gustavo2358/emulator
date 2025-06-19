@@ -4,8 +4,8 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 
 import core.CPU;
-import core.Cartridge; // Added import
-import core.Bus; // Added import for cpuBus
+import core.Cartridge;
+import core.Bus;
 
 
 public class PPUImpl implements PPU {
@@ -84,11 +84,11 @@ public class PPUImpl implements PPU {
     private int oamDmaCyclesRemaining; // PPU cycles PPU is "busy" or managing DMA
 
     // ---------------------------------------------------------------------
-    public PPUImpl(Cartridge cartridge) { // Modified constructor
+    public PPUImpl(Cartridge cartridge) {
         this.vram = new VRAM();
         this.oam = new OAM();
         this.paletteRam = new PaletteRam();
-        this.cartridge = cartridge; // Initialize cartridge
+        this.cartridge = cartridge;
         // this.cpu will be set via setter
 
         frameBuffer = new BufferedImage(256, 240, BufferedImage.TYPE_INT_RGB);
@@ -97,7 +97,7 @@ public class PPUImpl implements PPU {
         reset();
     }
 
-    public void setCpu(CPU cpu) { // Added setter for core.CPU
+    public void setCpu(CPU cpu) {
         this.cpu = cpu;
     }
 
@@ -345,46 +345,20 @@ public class PPUImpl implements PPU {
         }
     }
 
-    // =====================================================================
-    // Rendering – one PPU cycle -------------------------------------------
-    // =====================================================================
     @Override
     public void runCycle() {
         if (cycle == 1) {
             ppuStatus &= ~0xE0;
             nmiOccurred = false;
         }
+
         copyVerticalScrollBitsFromTRam();
 
         if (scanline < 240) {
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
                 updateShifters();
 
-                switch ((cycle - 1) % 8) {
-                    case 0:
-                        loadBackgroundShifters();
-                        bgNextTileId = ppuRead(0x2000 | (vRamAddr & 0x0FFF));
-                        break;
-                    case 2: {
-                        int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
-                        int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
-                        bgNextTileAttribute = (ppuRead(attributeAddress) >> shift) & 0x3;
-                        break;
-                    }
-                    case 4: {
-                        int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7);
-                        bgNextTileLow = ppuRead(patternAddress);
-                        break;
-                    }
-                    case 6: {
-                        int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7) | 8;
-                        bgNextTileHigh = ppuRead(patternAddress);
-                        break;
-                    }
-                    case 7:
-                        incrementX();
-                        break;
-                }
+                performBackgroundFetches();
             }
 
             if (cycle == 256) {
@@ -407,6 +381,34 @@ public class PPUImpl implements PPU {
         advanceCycleAndScanline();
 
         updateNmiEdgeDetector();
+    }
+
+    private void performBackgroundFetches() {
+        switch ((cycle - 1) % 8) {
+            case 0:
+                loadBackgroundShifters();
+                bgNextTileId = ppuRead(0x2000 | (vRamAddr & 0x0FFF));
+                break;
+            case 2: {
+                int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
+                int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
+                bgNextTileAttribute = (ppuRead(attributeAddress) >> shift) & 0x3;
+                break;
+            }
+            case 4: {
+                int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7);
+                bgNextTileLow = ppuRead(patternAddress);
+                break;
+            }
+            case 6: {
+                int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7) | 8;
+                bgNextTileHigh = ppuRead(patternAddress);
+                break;
+            }
+            case 7:
+                incrementX();
+                break;
+        }
     }
 
     private void updateNmiEdgeDetector() {
@@ -613,9 +615,6 @@ public class PPUImpl implements PPU {
         }
     }
 
-    // =====================================================================
-    // Helper methods -------------------------------------------------------
-    // =====================================================================
     private void updateShifters() {
         if ((ppuMask & 0x08) != 0) {
             bgShifterPatternLow <<= 1;
