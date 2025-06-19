@@ -345,30 +345,21 @@ public class PPUImpl implements PPU {
         }
     }
 
-    private int mirrorAddress(int address) {
-        address &= 0x2FFF;
-        int table = (address >> 10) & 0x03;
-        int offset = address & 0x03FF;
-
-        table = (table & 0x01) | ((table & 0x02) >> 1);
-        return 0x2000 | (table << 10) | offset;
-    }
-
     // =====================================================================
     // Rendering – one PPU cycle -------------------------------------------
     // =====================================================================
     @Override
     public void runCycle() {
-        boolean wasDmaActiveThisCycleStart = oamDmaActive;
+//        boolean wasDmaActiveThisCycleStart = oamDmaActive;
+//
+//        if (oamDmaActive) {
+//            oamDmaCyclesRemaining--;
+//            if (oamDmaCyclesRemaining <= 0) {
+//                oamDmaActive = false;
+//            }
+//        }
 
-        if (oamDmaActive) {
-            oamDmaCyclesRemaining--;
-            if (oamDmaCyclesRemaining <= 0) {
-                oamDmaActive = false;
-            }
-        }
-
-        if (!wasDmaActiveThisCycleStart) {
+//        if (!wasDmaActiveThisCycleStart) {
             if (scanline <= 261) {
                 if (cycle == 1) {
                     ppuStatus &= ~0xE0;
@@ -478,15 +469,9 @@ public class PPUImpl implements PPU {
             }
 
             if (scanline == 241 && cycle == 1) {
-                ppuStatus |= 0x80; // Set VBlank flag
-                if ((ppuCtrl & 0x80) != 0) { // If NMI is enabled in PPUCTRL
-                    this.nmiOccurred = true; // PPU's internal flag that NMI condition happened
-                    if (this.cpu != null) {
-                        this.cpu.triggerNMI(); // Signal the core.CPU
-                    }
-                }
+                enterVBlank();
             }
-        }
+//        }
 
         cycle++;
         if (cycle > 340) {
@@ -507,6 +492,16 @@ public class PPUImpl implements PPU {
             nmiPrevious = true;
         } else if (!nmi && nmiPrevious) {
             nmiPrevious = false;
+        }
+    }
+
+    private void enterVBlank() {
+        ppuStatus |= 0x80; // Set VBlank flag
+        if ((ppuCtrl & 0x80) != 0) { // If NMI is enabled in PPUCTRL
+            this.nmiOccurred = true; // PPU's internal flag that NMI condition happened
+            if (this.cpu != null) {
+                this.cpu.triggerNMI(); // Signal the core.CPU
+            }
         }
     }
 
