@@ -350,128 +350,115 @@ public class PPUImpl implements PPU {
     // =====================================================================
     @Override
     public void runCycle() {
-//        boolean wasDmaActiveThisCycleStart = oamDmaActive;
-//
-//        if (oamDmaActive) {
-//            oamDmaCyclesRemaining--;
-//            if (oamDmaCyclesRemaining <= 0) {
-//                oamDmaActive = false;
-//            }
-//        }
+        if (cycle == 1) {
+            ppuStatus &= ~0xE0;
+            nmiOccurred = false;
+        }
+        if (scanline == 261 && cycle >= 280 && cycle <= 304) {
+            if ((ppuMask & 0x18) != 0) {
+                vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
+            }
+        }
 
-//        if (!wasDmaActiveThisCycleStart) {
-            if (scanline <= 261) {
-                if (cycle == 1) {
-                    ppuStatus &= ~0xE0;
-                    nmiOccurred = false;
-                }
-                if (scanline == 261 && cycle >= 280 && cycle <= 304) {
-                    if ((ppuMask & 0x18) != 0) {
-                        vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
-                    }
-                }
+        if (scanline < 240) {
+            if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
+                updateShifters();
 
-                if (scanline < 240) {
-                    if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
-                        updateShifters();
-
-                        switch ((cycle - 1) % 8) {
-                            case 0:
-                                loadBackgroundShifters();
-                                bgNextTileId = ppuRead(0x2000 | (vRamAddr & 0x0FFF));
-                                break;
-                            case 2: {
-                                int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
-                                int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
-                                bgNextTileAttribute = (ppuRead(attributeAddress) >> shift) & 0x3;
-                                break;
-                            }
-                            case 4: {
-                                int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7);
-                                bgNextTileLow = ppuRead(patternAddress);
-                                break;
-                            }
-                            case 6: {
-                                int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7) | 8;
-                                bgNextTileHigh = ppuRead(patternAddress);
-                                break;
-                            }
-                            case 7:
-                                incrementX();
-                                break;
-                        }
-                    }
-
-                    if (cycle == 256) {
-                        incrementY();
-                    }
-                    if (cycle == 257) {
+                switch ((cycle - 1) % 8) {
+                    case 0:
                         loadBackgroundShifters();
-                        if ((ppuMask & 0x18) != 0) {
-                            vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
-                        }
-
-                        for (int i = 0; i < 8; i++) {
-                            spriteX[i] = 0xFF;
-                            spriteY[i] = 0xFF;
-                            spriteTile[i] = 0xFF;
-                            spriteAttribute[i] = 0xFF;
-                            spriteDataLow[i] = 0;
-                            spriteDataHigh[i] = 0;
-                        }
-                        spriteCount = 0;
-                        int oamIndex = 0;
-
-                        while (oamIndex < 64 && spriteCount < 8) {
-                            int y = oam.read(oamIndex * 4);
-                            int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
-                            int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
-                            if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
-                                spriteY[spriteCount] = y;
-                                spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
-                                spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
-                                spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
-
-                                int tileAddr;
-                                int row = nextScanln - y;
-                                if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
-                                    row = spriteHeight - 1 - row;
-                                }
-
-                                if ((ppuCtrl & 0x20) == 0) {
-                                    tileAddr = ((ppuCtrl & 0x08) << 9) | (spriteTile[spriteCount] << 4) | row;
-                                } else {
-                                    tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
-                                }
-
-                                spriteDataLow[spriteCount] = ppuRead(tileAddr);
-                                spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
-
-                                if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
-                                    spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
-                                    spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
-                                }
-
-                                spriteCount++;
-                            }
-                            oamIndex++;
-                        }
-
-                        if (oamIndex >= 64 && spriteCount >= 8) {
-                            ppuStatus |= 0x20;
-                        }
+                        bgNextTileId = ppuRead(0x2000 | (vRamAddr & 0x0FFF));
+                        break;
+                    case 2: {
+                        int attributeAddress = 0x23C0 | (vRamAddr & 0x0C00) | ((vRamAddr >> 4) & 0x38) | ((vRamAddr >> 2) & 0x07);
+                        int shift = ((vRamAddr >> 4) & 4) | (vRamAddr & 2);
+                        bgNextTileAttribute = (ppuRead(attributeAddress) >> shift) & 0x3;
+                        break;
                     }
-
-                    if (cycle >= 1 && cycle <= 256 && scanline >= 0) {
-                        renderPixelForCurrentPosition();
+                    case 4: {
+                        int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7);
+                        bgNextTileLow = ppuRead(patternAddress);
+                        break;
                     }
+                    case 6: {
+                        int patternAddress = ((ppuCtrl & 0x10) << 8) | (bgNextTileId << 4) | ((vRamAddr >> 12) & 7) | 8;
+                        bgNextTileHigh = ppuRead(patternAddress);
+                        break;
+                    }
+                    case 7:
+                        incrementX();
+                        break;
                 }
             }
 
-            if (scanline == 241 && cycle == 1) {
-                enterVBlank();
+            if (cycle == 256) {
+                incrementY();
             }
-//        }
+            if (cycle == 257) {
+                loadBackgroundShifters();
+                if ((ppuMask & 0x18) != 0) {
+                    vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
+                }
+
+                for (int i = 0; i < 8; i++) {
+                    spriteX[i] = 0xFF;
+                    spriteY[i] = 0xFF;
+                    spriteTile[i] = 0xFF;
+                    spriteAttribute[i] = 0xFF;
+                    spriteDataLow[i] = 0;
+                    spriteDataHigh[i] = 0;
+                }
+                spriteCount = 0;
+                int oamIndex = 0;
+
+                while (oamIndex < 64 && spriteCount < 8) {
+                    int y = oam.read(oamIndex * 4);
+                    int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
+                    int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
+                    if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
+                        spriteY[spriteCount] = y;
+                        spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
+                        spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
+                        spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
+
+                        int tileAddr;
+                        int row = nextScanln - y;
+                        if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
+                            row = spriteHeight - 1 - row;
+                        }
+
+                        if ((ppuCtrl & 0x20) == 0) {
+                            tileAddr = ((ppuCtrl & 0x08) << 9) | (spriteTile[spriteCount] << 4) | row;
+                        } else {
+                            tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
+                        }
+
+                        spriteDataLow[spriteCount] = ppuRead(tileAddr);
+                        spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
+
+                        if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
+                            spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
+                            spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
+                        }
+
+                        spriteCount++;
+                    }
+                    oamIndex++;
+                }
+
+                if (oamIndex >= 64 && spriteCount >= 8) {
+                    ppuStatus |= 0x20;
+                }
+            }
+
+            if (cycle >= 1 && cycle <= 256 && scanline >= 0) {
+                renderPixelForCurrentPosition();
+            }
+        }
+
+        if (scanline == 241 && cycle == 1) {
+            enterVBlank();
+        }
 
         cycle++;
         if (cycle > 340) {
