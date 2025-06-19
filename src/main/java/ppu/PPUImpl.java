@@ -347,17 +347,19 @@ public class PPUImpl implements PPU {
 
     @Override
     public void runCycle() {
-        if (cycle == 1) {
+        if (scanline == 261 && cycle == 1) {
+            // Clear VBlank (bit 7), Sprite 0 Hit (bit 6), and Sprite Overflow (bit 5) flags in PPUSTATUS
             ppuStatus &= ~0xE0;
             nmiOccurred = false;
         }
 
-        copyVerticalScrollBitsFromTRam();
+        if (scanline == 261 && cycle >= 280 && cycle <= 304) {
+            copyVerticalScrollBitsFromTRam();
+        }
 
         if (scanline < 240) {
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
                 updateShifters();
-
                 performBackgroundFetches();
             }
 
@@ -379,7 +381,6 @@ public class PPUImpl implements PPU {
         }
 
         advanceCycleAndScanline();
-
         updateNmiEdgeDetector();
     }
 
@@ -451,10 +452,8 @@ public class PPUImpl implements PPU {
      * temporary VRAM address <code>tRamAddr</code> to the current VRAM address <code>vRamAddr</code>
      */
     private void copyVerticalScrollBitsFromTRam() {
-        if (scanline == 261 && cycle >= 280 && cycle <= 304) {
-            if ((ppuMask & 0x18) != 0) {
-                vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
-            }
+        if ((ppuMask & 0x18) != 0) {
+            vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
         }
     }
 
