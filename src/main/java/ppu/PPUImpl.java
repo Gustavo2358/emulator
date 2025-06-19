@@ -395,60 +395,8 @@ public class PPUImpl implements PPU {
                 incrementY();
             }
             if (cycle == 257) {
-                loadBackgroundShifters();
-                if ((ppuMask & 0x18) != 0) {
-                    vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
-                }
-
-                for (int i = 0; i < 8; i++) {
-                    spriteX[i] = 0xFF;
-                    spriteY[i] = 0xFF;
-                    spriteTile[i] = 0xFF;
-                    spriteAttribute[i] = 0xFF;
-                    spriteDataLow[i] = 0;
-                    spriteDataHigh[i] = 0;
-                }
-                spriteCount = 0;
-                int oamIndex = 0;
-
-                while (oamIndex < 64 && spriteCount < 8) {
-                    int y = oam.read(oamIndex * 4);
-                    int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
-                    int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
-                    if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
-                        spriteY[spriteCount] = y;
-                        spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
-                        spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
-                        spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
-
-                        int tileAddr;
-                        int row = nextScanln - y;
-                        if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
-                            row = spriteHeight - 1 - row;
-                        }
-
-                        if ((ppuCtrl & 0x20) == 0) {
-                            tileAddr = ((ppuCtrl & 0x08) << 9) | (spriteTile[spriteCount] << 4) | row;
-                        } else {
-                            tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
-                        }
-
-                        spriteDataLow[spriteCount] = ppuRead(tileAddr);
-                        spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
-
-                        if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
-                            spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
-                            spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
-                        }
-
-                        spriteCount++;
-                    }
-                    oamIndex++;
-                }
-
-                if (oamIndex >= 64 && spriteCount >= 8) {
-                    ppuStatus |= 0x20;
-                }
+                copyHorizontalScrollBitsFromTRam();
+                evaluateSprintesForNextScanline();
             }
 
             if (cycle >= 1 && cycle <= 256 && scanline >= 0) {
@@ -479,6 +427,72 @@ public class PPUImpl implements PPU {
             nmiPrevious = true;
         } else if (!nmi && nmiPrevious) {
             nmiPrevious = false;
+        }
+    }
+
+    /**
+     * Copy the horizontal scroll bits (coarse X and fine X) from the
+     * temporary VRAM address <code>tRamAddr</code> to the current VRAM address <code>vRamAddr</code>
+     */
+    private void copyHorizontalScrollBitsFromTRam() {
+        if ((ppuMask & 0x18) != 0) {
+            vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
+        }
+    }
+
+    /**
+     * Scans the primary OAM memory to find which sprites are visible on the next scanline,
+     * populates the secondary OAM with their data, and fetches the corresponding tile pattern data.
+     */
+    private void evaluateSprintesForNextScanline() {
+        for (int i = 0; i < 8; i++) {
+            spriteX[i] = 0xFF;
+            spriteY[i] = 0xFF;
+            spriteTile[i] = 0xFF;
+            spriteAttribute[i] = 0xFF;
+            spriteDataLow[i] = 0;
+            spriteDataHigh[i] = 0;
+        }
+        spriteCount = 0;
+        int oamIndex = 0;
+
+        while (oamIndex < 64 && spriteCount < 8) {
+            int y = oam.read(oamIndex * 4);
+            int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
+            int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
+            if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
+                spriteY[spriteCount] = y;
+                spriteTile[spriteCount] = oam.read(oamIndex * 4 + 1);
+                spriteAttribute[spriteCount] = oam.read(oamIndex * 4 + 2);
+                spriteX[spriteCount] = oam.read(oamIndex * 4 + 3);
+
+                int tileAddr;
+                int row = nextScanln - y;
+                if ((spriteAttribute[spriteCount] & 0x80) == 0x80) {
+                    row = spriteHeight - 1 - row;
+                }
+
+                if ((ppuCtrl & 0x20) == 0) {
+                    tileAddr = ((ppuCtrl & 0x08) << 9) | (spriteTile[spriteCount] << 4) | row;
+                } else {
+                    tileAddr = ((spriteTile[spriteCount] & 0x01) << 12) | ((spriteTile[spriteCount] & 0xFE) << 4) | row;
+                }
+
+                spriteDataLow[spriteCount] = ppuRead(tileAddr);
+                spriteDataHigh[spriteCount] = ppuRead(tileAddr | 8);
+
+                if ((spriteAttribute[spriteCount] & 0x40) == 0x40) {
+                    spriteDataLow[spriteCount] = reverseBits(spriteDataLow[spriteCount]);
+                    spriteDataHigh[spriteCount] = reverseBits(spriteDataHigh[spriteCount]);
+                }
+
+                spriteCount++;
+            }
+            oamIndex++;
+        }
+
+        if (oamIndex >= 64 && spriteCount >= 8) {
+            ppuStatus |= 0x20;
         }
     }
 
