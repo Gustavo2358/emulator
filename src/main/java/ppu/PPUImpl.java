@@ -354,11 +354,7 @@ public class PPUImpl implements PPU {
             ppuStatus &= ~0xE0;
             nmiOccurred = false;
         }
-        if (scanline == 261 && cycle >= 280 && cycle <= 304) {
-            if ((ppuMask & 0x18) != 0) {
-                vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
-            }
-        }
+        copyVerticalScrollBitsFromTRam();
 
         if (scanline < 240) {
             if ((cycle >= 1 && cycle <= 256) || (cycle >= 321 && cycle <= 336)) {
@@ -408,6 +404,21 @@ public class PPUImpl implements PPU {
             enterVBlank();
         }
 
+        advanceCycleAndScanline();
+
+        updateNmiEdgeDetector();
+    }
+
+    private void updateNmiEdgeDetector() {
+        boolean nmi = nmiOutput && nmiOccurred;
+        if (nmi && !nmiPrevious) {
+            nmiPrevious = true;
+        } else if (!nmi && nmiPrevious) {
+            nmiPrevious = false;
+        }
+    }
+
+    private void advanceCycleAndScanline() {
         cycle++;
         if (cycle > 340) {
             cycle = 0;
@@ -421,13 +432,6 @@ public class PPUImpl implements PPU {
                 }
             }
         }
-
-        boolean nmi = nmiOutput && nmiOccurred;
-        if (nmi && !nmiPrevious) {
-            nmiPrevious = true;
-        } else if (!nmi && nmiPrevious) {
-            nmiPrevious = false;
-        }
     }
 
     /**
@@ -439,6 +443,19 @@ public class PPUImpl implements PPU {
             vRamAddr = (vRamAddr & ~0x041F) | (tRamAddr & 0x041F);
         }
     }
+
+    /**
+     * Copy the vertical scroll bits (coarse X and fine X) from the
+     * temporary VRAM address <code>tRamAddr</code> to the current VRAM address <code>vRamAddr</code>
+     */
+    private void copyVerticalScrollBitsFromTRam() {
+        if (scanline == 261 && cycle >= 280 && cycle <= 304) {
+            if ((ppuMask & 0x18) != 0) {
+                vRamAddr = (vRamAddr & 0x041F) | (tRamAddr & 0x7BE0);
+            }
+        }
+    }
+
 
     /**
      * Scans the primary OAM memory to find which sprites are visible on the next scanline,
