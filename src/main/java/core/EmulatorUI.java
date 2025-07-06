@@ -7,7 +7,6 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferStrategy;
-import java.io.File;
 
 public class EmulatorUI extends JFrame {
     private static final int SCALE = 2;
@@ -47,26 +46,7 @@ public class EmulatorUI extends JFrame {
         pack();
         setLocationRelativeTo(null);
 
-        setupMenuBar();
         setupKeyboardInput();
-    }
-
-    private void setupMenuBar() {
-        JMenuBar menuBar = new JMenuBar();
-        JMenu fileMenu = new JMenu("File");
-
-        JMenuItem openRomItem = new JMenuItem("Open ROM");
-        openRomItem.addActionListener(e -> openRomFile());
-
-        JMenuItem exitItem = new JMenuItem("Exit");
-        exitItem.addActionListener(e -> System.exit(0));
-
-        fileMenu.add(openRomItem);
-        fileMenu.addSeparator();
-        fileMenu.add(exitItem);
-
-        menuBar.add(fileMenu);
-        setJMenuBar(menuBar);
     }
 
     private void setupKeyboardInput() {
@@ -109,40 +89,6 @@ public class EmulatorUI extends JFrame {
             case KeyEvent.VK_RIGHT:
                 controller.setButton(7, isPressed); // Right
                 break;
-        }
-    }
-
-    private void openRomFile() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Open ROM File");
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
-            @Override
-            public boolean accept(File f) {
-                return f.isDirectory() || f.getName().toLowerCase().endsWith(".nes");
-            }
-
-            @Override
-            public String getDescription() {
-                return "NES ROM Files (*.nes)";
-            }
-        });
-
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = fileChooser.getSelectedFile();
-            loadRom(selectedFile.getAbsolutePath());
-        }
-    }
-
-    private void loadRom(String path) {
-        stop();
-
-        try {
-            start();
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this,
-                    "Error loading ROM: " + e.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
