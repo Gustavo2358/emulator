@@ -550,7 +550,7 @@ public class PPUImpl implements PPU {
         int fpalette = 0;
         int fpriority = 0;
 
-        if ((ppuMask & 0x10) != 0) {
+        if (isSpriteRenderingEnabled()) {
             if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
                 for (int i = 0; i < spriteCount; i++) {
                     if (spriteX[i] == 0) {
@@ -616,6 +616,10 @@ public class PPUImpl implements PPU {
         if (pixelIndex >= 0 && pixelIndex < frameData.length) {
             frameData[pixelIndex] = PALETTE[colorIndex];
         }
+    }
+
+    private boolean isSpriteRenderingEnabled() {
+        return (ppuMask & 0x10) != 0;
     }
 
     private void updateShifters() {
