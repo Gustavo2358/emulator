@@ -550,32 +550,33 @@ public class PPUImpl implements PPU {
         int fpalette = 0;
         int fpriority = 0;
 
-        if (isSpriteRenderingEnabled() && cycle < 256) {
+        if (isSpriteRenderingEnabled() && cycle <= 256) {
             if ((cycle > 8) || (ppuMask & 0x04) != 0) {
                 for (int i = 0; i < spriteCount; i++) {
                     if (spriteX[i] == 0) {
                         int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
                         fp |= ((spriteDataHigh[i] & 0x80) > 0 ? 2 : 0);
-                        fpalette = (spriteAttribute[i] & 0x03) + 4;
-                        fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0; // 1 if sprite behind BG, 0 if in front
 
-                        if (fp != 0) { // If sprite pixel is not transparent
-                            fpixel = fp; // Assign the calculated sprite pixel to fpixel
+                        if (fp != 0) {
+                            fpixel = fp;
+                            fpalette = (spriteAttribute[i] & 0x03) + 4;
+                            fpriority = (spriteAttribute[i] & 0x20) > 0 ? 1 : 0;
+
                             if (i == 0 && bgPixel != 0 && cycle != 256) { // Sprite 0 hit detection
                                 ppuStatus |= 0x40;
                             }
-                            break; // Found first opaque sprite pixel for this X
+                            break; // Found the highest-priority pixel, stop searching.
                         }
                     }
                 }
+            }
 
-                for (int i = 0; i < spriteCount; i++) {
-                    if (spriteX[i] > 0) {
-                        spriteX[i]--;
-                    } else {
-                        spriteDataLow[i] <<= 1;
-                        spriteDataHigh[i] <<= 1;
-                    }
+            for (int i = 0; i < spriteCount; i++) {
+                if (spriteX[i] > 0) {
+                    spriteX[i]--;
+                } else {
+                    spriteDataLow[i] <<= 1;
+                    spriteDataHigh[i] <<= 1;
                 }
             }
         }
