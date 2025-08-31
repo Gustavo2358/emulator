@@ -166,7 +166,6 @@ public class CPU {
         if (dmaStallCycles > 0) {
             dmaStallCycles--;
             // PPU clocking should continue during DMA stall
-            // Assuming PPU clocking is handled elsewhere or also needs to be added here if not.
             return;
         }
 

@@ -479,7 +479,7 @@ public class PPUImpl implements PPU {
         int oamIndex = 0;
 
         while (oamIndex < 64 && spriteCount < 8) {
-            int y = oam.read(oamIndex * 4);
+            int y = oam.read(oamIndex * 4) + 1; // Corrected: Add 1 to the OAM Y-coordinate
             int nextScanln = scanline + 1; // Sprite evaluation is for the *next* scanline
             int spriteHeight = ((ppuCtrl & 0x20) == 0x20 ? 16 : 8);
             if (nextScanln >= y && nextScanln < (y + spriteHeight)) {
@@ -533,7 +533,7 @@ public class PPUImpl implements PPU {
         int bgPalette = 0;
 
         if (isBackgroundRenderingEnabled()) {
-            if ((cycle % 8) != 0 || (ppuMask & 0x02) != 0) {
+            if ((cycle > 8) || (ppuMask & 0x02) != 0) {
                 int bitMux = 0x8000 >> fineX;
 
                 int p0 = (bgShifterPatternLow & bitMux) > 0 ? 1 : 0;
@@ -550,8 +550,8 @@ public class PPUImpl implements PPU {
         int fpalette = 0;
         int fpriority = 0;
 
-        if (isSpriteRenderingEnabled()) {
-            if ((cycle % 8) != 0 || (ppuMask & 0x04) != 0) {
+        if (isSpriteRenderingEnabled() && cycle < 256) {
+            if ((cycle > 8) || (ppuMask & 0x04) != 0) {
                 for (int i = 0; i < spriteCount; i++) {
                     if (spriteX[i] == 0) {
                         int fp = ((spriteDataLow[i] & 0x80) > 0 ? 1 : 0);
